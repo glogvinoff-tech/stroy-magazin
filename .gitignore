@@ -1,0 +1,25 @@
+node_modules/
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Python cache/venv
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Local databases
+*.db
+
+# Frontend build output
+build/
+
+# Local tunnel/download artifacts
+backend/Telegram/cloudflared-*.exe
+backend/Telegram/ngrok-*.zip
+backend/Telegram/ngrok-bin/
+backend/Telegram/cloudflared-logs/
+backend/Telegram/__pycache__/

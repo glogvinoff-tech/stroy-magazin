@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run:*)",
+      "Bash(menu_04)",
+      "Bash(menu_06)",
+      "Bash(menu_02)",
+      "Bash(menu_07)",
+      "Bash(menu_58\")",
+      "Bash(node -e ' *)",
+      "Bash(node -e \"require\\('pptxgenjs'\\); console.log\\('ok'\\)\")",
+      "Bash(npm install *)",
+      "Bash(node make_pptx.js)",
+      "Bash(python scripts/office/soffice.py --headless --convert-to pdf EMAE_Presentation.pptx)",
+      "Bash(python \"C:/Users/tema/AppData/Roaming/Claude/local-agent-mode-sessions/skills-plugin/68bc2b30-5d70-4eae-8251-463322ae332e/be46b6ad-bd9d-4079-b1dc-b6c2b52dbdf2/skills/pptx/scripts/office/soffice.py\" --headless --convert-to pdf EMAE_Presentation.pptx)",
+      "Bash(where soffice *)",
+      "Bash(where \"soffice.exe\")",
+      "Read(//c/Program Files/LibreOffice/program/**)",
+      "Bash(python -m markitdown \"C:/Users/tema/MIREA/pptx/EMAE_Presentation.pptx\")",
+      "Bash(pip install *)",
+      "Bash(python -c ' *)",
+      "Bash(powershell -command ' *)"
+    ]
+  }
+}
