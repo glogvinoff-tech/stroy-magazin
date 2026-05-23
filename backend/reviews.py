@@ -13,6 +13,7 @@ class ReviewCreate(BaseModel):
     rating: int = 5
     text: str
     order_id: str | None = None
+    item_id: int | None = None
 
 
 class ReviewReply(BaseModel):
@@ -26,7 +27,7 @@ class ReviewFeature(BaseModel):
 def _is_admin(db: Session, user_id: int) -> bool:
     try:
         u = db.query(User).filter(User.id == user_id).first()
-        return bool(u and getattr(u.role, "name", None) == "admin")
+        return bool(u and (getattr(u.role, "name", None) == "admin" or int(getattr(u, "role_id", 0) or 0) == 2))
     except Exception:
         return False
 
@@ -35,6 +36,7 @@ def _payload(r: Review) -> dict:
     return {
         "id": r.id,
         "user_id": r.user_id,
+        "item_id": r.item_id,
         "author_name": r.author_name or "Гость",
         "rating": r.rating,
         "text": r.text,
@@ -46,10 +48,12 @@ def _payload(r: Review) -> dict:
 
 
 @router.get("/")
-def list_reviews(featured_only: bool = False, db: Session = Depends(get_db)):
+def list_reviews(featured_only: bool = False, item_id: int | None = None, db: Session = Depends(get_db)):
     q = db.query(Review)
     if featured_only:
         q = q.filter(Review.is_featured == True)
+    if item_id is not None:
+        q = q.filter(Review.item_id == item_id)
     reviews = q.order_by(desc(Review.created_at)).all()
     return [_payload(r) for r in reviews]
 
@@ -71,6 +75,7 @@ def create_review(payload: ReviewCreate, user_id: int | None = None, db: Session
 
     r = Review(
         user_id=user_id,
+        item_id=payload.item_id,
         author_name=author_name,
         rating=rating,
         text=text,

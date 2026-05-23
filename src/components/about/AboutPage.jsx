@@ -1,41 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Icons } from '../icons/Icons';
 import { CONTACT_INFO } from '../../utils/contactInfo';
 import { useI18n } from '../../hooks/useI18n';
-import { api } from '../../utils/api';
-
-const FALLBACK_REVIEWS = [
-  { id: 'f1', author_name: 'Алина', rating: 5, text: 'Быстро собрали заказ, помогли подобрать крепёж и доставили в срок.' },
-  { id: 'f2', author_name: 'Дмитрий', rating: 5, text: 'Хороший выбор инструмента и материалов. Консультация по делу, без лишнего.' },
-  { id: 'f3', author_name: 'Мария', rating: 4, text: 'Удобный каталог, нашла плитку и грунтовку для ремонта в одном месте.' },
-];
-
-function Stars({ rating }) {
-  const { t } = useI18n();
-  const r = Math.max(0, Math.min(5, Number(rating || 0)));
-  const full = '★★★★★'.slice(0, r);
-  const empty = '☆☆☆☆☆'.slice(0, 5 - r);
-  return <span className="rv-stars" aria-label={t('rating_aria', { rating: r })}>{full}{empty}</span>;
-}
 
 export function AboutPage({ setPage, setModal }) {
   const { t } = useI18n();
-  const [reviews, setReviews] = useState(FALLBACK_REVIEWS);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const data = await api.reviews.list(true); // featured only
-        if (!cancelled && Array.isArray(data) && data.length > 0) {
-          setReviews(data.slice(0, 3));
-        }
-      } catch {
-        // keep fallbacks
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
 
   return (
     <div className="page about-page">
@@ -97,45 +66,6 @@ export function AboutPage({ setPage, setModal }) {
         </button>
       </div>
 
-      <div className="about-reviews">
-        <div className="about-reviews-header">
-          <div className="about-reviews-h">{t('about_reviews_h')}</div>
-          <button type="button" className="btn btn-ghost" onClick={() => setPage?.('reviews')}>
-            <Icons.Star /> {t('reviews_write_btn')}
-          </button>
-        </div>
-        <div className="reviews-grid">
-          {reviews.map((r) => (
-            <div key={r.id} className="review-card">
-              <div className="review-top">
-                <div className="review-name">{r.author_name}</div>
-                <Stars rating={r.rating} />
-              </div>
-              <div className="review-text">{r.text}</div>
-              {r.admin_reply && (
-                <div style={{
-                  marginTop: 10, padding: '8px 10px',
-                  borderRadius: 10,
-                  background: 'rgba(201,169,110,0.06)',
-                  border: '1px solid rgba(201,169,110,0.18)',
-                  fontSize: 12,
-                  color: 'var(--muted-strong)',
-                  lineHeight: 1.5,
-                }}>
-                  <span style={{ color: 'var(--gold)', fontWeight: 600, fontSize: 11, letterSpacing: 1 }}>{t('review_admin_reply_label')}: </span>
-                  {r.admin_reply}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-        <div style={{ marginTop: 16, textAlign: 'center' }}>
-          <button type="button" className="btn btn-outline-gold" onClick={() => setPage?.('reviews')}>
-            {t('nav_reviews')} →
-          </button>
-        </div>
-      </div>
-
       <style>{`
         .about-page{max-width:1200px;margin:0 auto;padding:60px 32px;}
         .about-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:28px;}
@@ -190,22 +120,6 @@ export function AboutPage({ setPage, setModal }) {
         }
         .about-strip-title{font-family:var(--ff-d);font-size:20px;color:var(--text);}
         .about-strip-sub{margin-top:4px;color:var(--muted-strong);font-size:13px;line-height:1.6;}
-
-        .about-reviews{margin-top:26px;}
-        .about-reviews-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap;}
-        .about-reviews-h{font-family:var(--ff-d);font-size:28px;color:var(--text);}
-        .reviews-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
-        .review-card{
-          border:1px solid var(--glass-border);
-          border-radius:var(--r-lg);
-          background:var(--glass);
-          padding:16px;
-          overflow:hidden;
-        }
-        .review-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;}
-        .review-name{font-family:var(--ff-d);font-size:18px;color:var(--text);}
-        .rv-stars{color:var(--gold2);letter-spacing:1px;font-size:14px;white-space:nowrap;}
-        .review-text{color:var(--muted-strong);font-size:13px;line-height:1.7;}
 
         @media(max-width:1280px){
           .about-page{padding:56px 28px;}

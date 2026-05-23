@@ -424,8 +424,11 @@ export const api = {
   },
 
   reviews: {
-    list: async (featuredOnly = false) => {
-      const qp = featuredOnly ? '?featured_only=1' : '';
+    list: async (featuredOnly = false, itemId = null) => {
+      const params = new URLSearchParams();
+      if (featuredOnly) params.set('featured_only', '1');
+      if (itemId != null) params.set('item_id', String(itemId));
+      const qp = params.toString() ? `?${params.toString()}` : '';
       return requestJson(`/reviews/${qp}`);
     },
 

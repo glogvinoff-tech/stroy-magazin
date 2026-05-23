@@ -159,11 +159,12 @@ export function HeroPage({ onAddToCart, toast, setPage, setModal, onOpenAdminEdi
   const isAdmin = user?.role === 'admin' || user?.role_name === 'admin' || user?.is_admin;
   const [cur, setCur] = useState(0);
   const [paused, setPaused] = useState(false);
+  const [timerProgress, setTimerProgress] = useState(0);
   const [menuItems, setMenuItems] = useState([]);
   const [slides, setSlides] = useState(() => getActiveSlides([]));
   const introRef = useRef(null);
   const cardsRef = useRef(null);
-  const INTERVAL = 6500;
+  const INTERVAL = 9000;
   const timerRadius = 11;
   const timerCirc = 2 * Math.PI * timerRadius;
   const preloadedRef = useRef(new Set());
@@ -204,20 +205,38 @@ export function HeroPage({ onAddToCart, toast, setPage, setModal, onOpenAdminEdi
   const prev = (cur - 1 + len) % len;
   const next = (cur + 1) % len;
 
-  // Auto-advance (stops when paused)
+  // Auto-advance with frame-driven progress, so the circular timer is reliable.
   useEffect(() => {
-    if (paused) return;
-    const id = window.setTimeout(() => setCur(s => (s + 1) % len), INTERVAL);
-    return () => window.clearTimeout(id);
+    if (paused || len <= 1) return;
+    let raf = 0;
+    let start = 0;
+    const tick = (ts) => {
+      if (!start) start = ts;
+      const linear = Math.min(1, (ts - start) / INTERVAL);
+      const progress = linear < 0.5
+        ? 2 * linear * linear
+        : 1 - Math.pow(-2 * linear + 2, 2) / 2;
+      setTimerProgress(progress);
+      if (linear >= 1) {
+        setCur(s => (s + 1) % len);
+        return;
+      }
+      raf = window.requestAnimationFrame(tick);
+    };
+    setTimerProgress(0);
+    raf = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(raf);
   }, [cur, len, paused]);
 
   // Keyboard navigation
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'ArrowRight') {
+        setTimerProgress(0);
         setCur(s => (s + 1) % len);
         setPaused(false);
       } else if (e.key === 'ArrowLeft') {
+        setTimerProgress(0);
         setCur(s => (s - 1 + len) % len);
         setPaused(false);
       }
@@ -242,6 +261,7 @@ export function HeroPage({ onAddToCart, toast, setPage, setModal, onOpenAdminEdi
 
   const go = useCallback((i) => {
     setCur((i + len) % len);
+    setTimerProgress(0);
   }, [len]);
 
   // Touch / swipe handlers
@@ -257,6 +277,7 @@ export function HeroPage({ onAddToCart, toast, setPage, setModal, onOpenAdminEdi
     touchStartX.current = null;
     touchStartY.current = null;
     if (Math.abs(dx) < 40 || dy > Math.abs(dx)) return; // not a horizontal swipe
+    setTimerProgress(0);
     if (dx < 0) setCur(s => (s + 1) % len);
     else setCur(s => (s - 1 + len) % len);
   };
@@ -274,9 +295,7 @@ export function HeroPage({ onAddToCart, toast, setPage, setModal, onOpenAdminEdi
           className={`hero-timer${paused ? ' paused' : ''}`}
           aria-label={paused ? t('hero_resume') || 'Возобновить' : t('hero_pause') || 'Пауза'}
           onClick={() => setPaused(p => !p)}
-          // Use key to restart animation only when resuming (not pausing)
-          key={paused ? 'paused' : cur}
-          style={{ '--hero-int': `${INTERVAL}ms`, cursor: 'pointer' }}
+          style={{ '--hero-int': `${INTERVAL}ms`, '--hero-timer-circ': timerCirc, cursor: 'pointer' }}
         >
           {paused ? (
             /* Pause icon — two vertical bars */
@@ -288,12 +307,14 @@ export function HeroPage({ onAddToCart, toast, setPage, setModal, onOpenAdminEdi
             <svg viewBox="0 0 32 32">
               <circle className="hero-timer-track" cx="16" cy="16" r={timerRadius} />
               <circle
+                key={`timer-${cur}`}
                 className="hero-timer-prog"
                 cx="16"
                 cy="16"
                 r={timerRadius}
                 strokeDasharray={timerCirc}
-                strokeDashoffset={timerCirc}
+                strokeDashoffset={timerCirc * (1 - timerProgress)}
+                style={{ '--hero-timer-circ': timerCirc }}
               />
             </svg>
           )}
@@ -303,10 +324,7 @@ export function HeroPage({ onAddToCart, toast, setPage, setModal, onOpenAdminEdi
           <strong>{String(cur + 1).padStart(2, '0')}</strong> / {String(slides.length).padStart(2, '0')}
         </div>
 
-        <div
-          className="slides-wrap"
-          style={{ transform: `translateX(-${cur * 100}%)` }}
-        >
+        <div className="slides-wrap">
           {slides.map((sl, i) => {
             const dishName = sl.dishNameOverride || (sl.dishKey ? t(sl.dishKey) : '');
             const tagLabel = sl.tagOverride !== undefined
@@ -339,7 +357,7 @@ export function HeroPage({ onAddToCart, toast, setPage, setModal, onOpenAdminEdi
                       <Icons.Plus /> {t('hero_order_now')}
                     </button>
                     <button type="button" className="btn btn-hero-ghost" onClick={() => setPage('menu')}>
-                      {t('В каталог')}
+                      {t('hero_view_menu')}
                     </button>
                   </div>
                 </div>

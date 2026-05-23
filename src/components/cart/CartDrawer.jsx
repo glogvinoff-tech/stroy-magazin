@@ -110,10 +110,27 @@ export function CartDrawer({ cart, onClose, onQty, onRemove, toast, reservation,
   const [showReview, setShowReview] = useState(false);
   const yandexApiKey = process.env.REACT_APP_YANDEX_MAPS_API_KEY || '';
   const userKey = String(user?.id || 'guest');
-  const minDateTimeLocal = useMemo(() => {
+  const timeSlots = useMemo(() => {
+    const slots = [];
     const now = new Date();
-    const tz = now.getTimezoneOffset() * 60000;
-    return new Date(Date.now() - tz).toISOString().slice(0, 16);
+    const start = new Date(now);
+    start.setMinutes(Math.ceil(start.getMinutes() / 30) * 30, 0, 0);
+    for (let i = 0; i < 7 * 24 * 2; i += 1) {
+      const dt = new Date(start.getTime() + i * 30 * 60 * 1000);
+      const h = dt.getHours();
+      if (h < 9 || h > 21 || (h === 21 && dt.getMinutes() > 0)) continue;
+      const tz = dt.getTimezoneOffset() * 60000;
+      const value = new Date(dt.getTime() - tz).toISOString().slice(0, 16);
+      const label = dt.toLocaleString('ru-RU', {
+        weekday: 'short',
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      slots.push({ value, label });
+    }
+    return slots;
   }, []);
 
   const toReservationList = (v) => (Array.isArray(v) ? v : v ? [v] : []);
@@ -432,7 +449,18 @@ export function CartDrawer({ cart, onClose, onQty, onRemove, toast, reservation,
                     <div className="ci-price">{item.price * item.qty} ₽</div>
                     <div className="ci-qty">
                       <button type="button" className="qty-btn" onClick={() => onQty(item.id, -1)} aria-label={t('qty_decrease')}><Icons.Minus /></button>
-                      <span className="qty-v">{item.qty}</span>
+                      <input
+                        className="qty-input"
+                        type="number"
+                        min="1"
+                        max="999"
+                        value={item.qty}
+                        onChange={(e) => onQty(item.id, e.target.value, 'set')}
+                        onBlur={(e) => {
+                          if (!String(e.target.value || '').trim()) onQty(item.id, 1, 'set');
+                        }}
+                        aria-label={t('quantity') || t('qty_increase')}
+                      />
                       <button type="button" className="qty-btn" onClick={() => onQty(item.id, +1)} aria-label={t('qty_increase')}><Icons.Plus /></button>
                     </div>
                   </div>
@@ -476,7 +504,12 @@ export function CartDrawer({ cart, onClose, onQty, onRemove, toast, reservation,
               <div className="fi-row" style={{ marginBottom: 14, flexDirection: 'row', gap: 8 }}>
                 <div className="fg" style={{ marginBottom: 0 }}>
                   <div className="fl">{t('cart_time')}</div>
-                  <input className="fi" type="datetime-local" min={minDateTimeLocal} value={fulfillmentTime} onChange={(e) => setFulfillmentTime(e.target.value)} />
+                  <select className="fi" value={fulfillmentTime} onChange={(e) => setFulfillmentTime(e.target.value)}>
+                    <option value="">{t('cart_time_required')}</option>
+                    {timeSlots.map((slot) => (
+                      <option key={slot.value} value={slot.value}>{slot.label}</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="fg" style={{ marginBottom: 0 }}>
                   <div className="fl">{t('cart_payment')}</div>

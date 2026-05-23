@@ -38,6 +38,7 @@
   animation:swIn .28s var(--ease);
   display:flex;
   flex-direction:column;
+  min-height:0;
 }
 .sw-wrap.dragging{user-select:none;}
 .sw-wrap.dragging .sw-head{cursor:grabbing;}
@@ -150,11 +151,18 @@
   z-index:1;
   padding:14px;
   flex:1;
+  min-height:0;
   overflow:auto;
+  overscroll-behavior:contain;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(201,169,110,0.55) transparent;
   display:flex;
   flex-direction:column;
   gap:10px;
 }
+.sw-list::-webkit-scrollbar{width:8px;}
+.sw-list::-webkit-scrollbar-thumb{background:rgba(201,169,110,0.45);border-radius:999px;}
+.sw-list::-webkit-scrollbar-track{background:transparent;}
 .sw-sys{
   color:var(--muted-strong);
   font-size:12px;

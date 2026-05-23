@@ -19,6 +19,7 @@ class MenuItemCreate(BaseModel):
     badge: str | None = None
     tags: list[str] = []
     img: str | None = None
+    gallery: list[str] = []
     desc: str | None = None
     ingr: str | None = None
     is_active: bool = True
@@ -33,6 +34,7 @@ class MenuItemUpdate(BaseModel):
     badge: str | None = None
     tags: list[str] | None = None
     img: str | None = None
+    gallery: list[str] | None = None
     desc: str | None = None
     ingr: str | None = None
     is_active: bool | None = None
@@ -84,6 +86,32 @@ def _tags_from_json(raw: str | None) -> list[str]:
     return []
 
 
+def _gallery_to_json(items: list[str]) -> str:
+    cleaned = []
+    for item in items or []:
+        url = str(item or "").strip()
+        if url and url not in cleaned:
+            cleaned.append(url)
+    return json.dumps(cleaned, ensure_ascii=False)
+
+
+def _gallery_from_json(raw: str | None) -> list[str]:
+    if not raw:
+        return []
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, list):
+            result = []
+            for item in parsed:
+                url = str(item or "").strip()
+                if url and url not in result:
+                    result.append(url)
+            return result
+    except Exception:
+        return []
+    return []
+
+
 def _payload(item: MenuItem) -> dict:
     return {
         "id": item.id,
@@ -95,6 +123,7 @@ def _payload(item: MenuItem) -> dict:
         "badge": item.badge or "",
         "tags": _tags_from_json(item.tags_json),
         "img": item.img or "",
+        "gallery": _gallery_from_json(getattr(item, "gallery_json", None)),
         "desc": item.desc or "",
         "ingr": item.ingr or "",
         "is_active": bool(item.is_active),
@@ -142,6 +171,7 @@ def create_item(payload: MenuItemCreate, admin_id: int, db: Session = Depends(ge
         badge=(payload.badge or "").strip() or None,
         tags_json=_tags_to_json(payload.tags or []),
         img=(payload.img or "").strip() or None,
+        gallery_json=_gallery_to_json(payload.gallery or []),
         desc=(payload.desc or "").strip() or None,
         ingr=(payload.ingr or "").strip() or None,
         is_active=bool(payload.is_active),
@@ -180,6 +210,8 @@ def update_item(item_id: int, payload: MenuItemUpdate, admin_id: int, db: Sessio
         item.tags_json = _tags_to_json(data["tags"] or [])
     if "img" in data:
         item.img = (data["img"] or "").strip() or None
+    if "gallery" in data:
+        item.gallery_json = _gallery_to_json(data["gallery"] or [])
     if "desc" in data:
         item.desc = (data["desc"] or "").strip() or None
     if "ingr" in data:

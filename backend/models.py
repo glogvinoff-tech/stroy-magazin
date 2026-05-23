@@ -267,6 +267,7 @@ class MenuItem(Base):
     badge = Column(String, nullable=True)
     tags_json = Column(Text, nullable=True)
     img = Column(String, nullable=True)
+    gallery_json = Column(Text, nullable=True)
     desc = Column(Text, nullable=True)
     ingr = Column(Text, nullable=True)
     is_active = Column(Boolean, nullable=False, default=True)
@@ -292,6 +293,7 @@ class Review(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    item_id = Column(Integer, ForeignKey("menu_items.id"), nullable=True, index=True)
     author_name = Column(String, nullable=False, default="Гость")
     rating = Column(Integer, nullable=False, default=5)
     text = Column(Text, nullable=False)
@@ -301,3 +303,4 @@ class Review(Base):
     created_at = Column(DateTime(timezone=True), nullable=True, server_default=func.now())
 
     user = relationship("User")
+    item = relationship("MenuItem")

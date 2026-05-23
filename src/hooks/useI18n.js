@@ -51,6 +51,7 @@ const DICT = {
     added: 'Добавлено',
 
     hero_order_now: 'В корзину',
+    hero_view_menu: 'В каталог',
     hero_view_catalog: 'Весь каталог',
     hero_dish_of_day: 'Товар дня',
     hero_prev_slide: 'Предыдущий слайд',
@@ -875,6 +876,7 @@ const DICT = {
     added: 'Added',
 
     hero_order_now: 'Order now',
+    hero_view_menu: 'Catalog',
     hero_view_catalog: 'View catalog',
     hero_dish_of_day: 'Product of the day',
     hero_prev_slide: 'Previous slide',
@@ -1693,6 +1695,7 @@ const DICT = {
     added: '已添加',
 
     hero_order_now: '立即下单',
+    hero_view_menu: '商品目录',
     hero_view_catalog: '查看菜单',
     hero_dish_of_day: '今日推荐',
     hero_prev_slide: '上一张',

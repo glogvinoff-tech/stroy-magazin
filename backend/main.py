@@ -229,6 +229,9 @@ def migrate_legacy_menu_items_schema():
         if "discount_percent" not in cols:
             db.execute(text("ALTER TABLE menu_items ADD COLUMN discount_percent INTEGER"))
             changed = True
+        if "gallery_json" not in cols:
+            db.execute(text("ALTER TABLE menu_items ADD COLUMN gallery_json TEXT"))
+            changed = True
 
         if changed:
             db.commit()
@@ -260,6 +263,21 @@ def migrate_legacy_orders_schema():
             db.execute(text("ALTER TABLE orders ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'"))
             changed = True
         if changed:
+            db.commit()
+    finally:
+        db.close()
+
+
+def migrate_legacy_reviews_schema():
+    db: Session = SessionLocal()
+    try:
+        cols = {
+            row[1] for row in db.execute(text("PRAGMA table_info(reviews)")).fetchall()
+        }
+        if not cols:
+            return
+        if "item_id" not in cols:
+            db.execute(text("ALTER TABLE reviews ADD COLUMN item_id INTEGER"))
             db.commit()
     finally:
         db.close()
@@ -339,6 +357,7 @@ migrate_legacy_users_schema()
 migrate_legacy_tables_schema()
 migrate_legacy_menu_items_schema()
 migrate_legacy_orders_schema()
+migrate_legacy_reviews_schema()
 
 # Создаем приложение FastAPI
 app = FastAPI(

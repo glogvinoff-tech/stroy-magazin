@@ -3,8 +3,22 @@ import { Icons } from '../icons/Icons';
 import { useI18n } from '../../hooks/useI18n';
 import { useAuth } from '../../hooks/useAuth';
 import { api } from '../../utils/api';
+import { makeStorageKey, readJsonStorageWithLegacy } from '../../utils/brand';
 
 const REVIEW_PHOTOS_KEY = 'review_local_photos';
+const REVIEW_PARTNERS_SUFFIX = 'review_partners';
+const REVIEW_PARTNERS_KEY = makeStorageKey(REVIEW_PARTNERS_SUFFIX);
+const DEFAULT_REVIEW_PARTNERS = [
+  { title: 'Частные мастера', text: 'Материалы и расходники для ежедневных объектов.' },
+  { title: 'Строительные бригады', text: 'Повторяемые заказы, комплектация и доставка на адрес.' },
+  { title: 'Дизайнеры и прорабы', text: 'Подбор отделки, крепежа и инженерных позиций под проект.' },
+  { title: 'Домовладельцы', text: 'Ремонт, дача, мастерская и бытовые задачи без лишней сложности.' },
+];
+
+function loadReviewPartners() {
+  const parsed = readJsonStorageWithLegacy(REVIEW_PARTNERS_SUFFIX, DEFAULT_REVIEW_PARTNERS, Array.isArray);
+  return Array.isArray(parsed) && parsed.length ? parsed : DEFAULT_REVIEW_PARTNERS;
+}
 
 function getLocalPhoto(reviewId) {
   try {
@@ -85,6 +99,7 @@ export function ReviewsPage({ toast }) {
   const { t } = useI18n();
   const { user } = useAuth();
   const [reviews, setReviews] = useState([]);
+  const [partners, setPartners] = useState(loadReviewPartners);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
 
@@ -111,6 +126,14 @@ export function ReviewsPage({ toast }) {
     })();
     return () => { cancelled = true; };
   }, [submitted]);
+
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key === REVIEW_PARTNERS_KEY) setPartners(loadReviewPartners());
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   const handlePhotoChange = (file) => {
     if (!file || !file.type.startsWith('image/')) return;
@@ -148,6 +171,18 @@ export function ReviewsPage({ toast }) {
     <div className="page rv-page">
       <div className="page-title">{t('reviews_title_pre')} <em>{t('reviews_title_em')}</em></div>
       <div className="page-sub">{t('reviews_sub')}</div>
+
+      <div className="rv-partners">
+        <div className="rv-partners-title">С кем мы работаем</div>
+        <div className="rv-partners-grid">
+          {partners.map((item, idx) => (
+            <div key={`${item.title}-${idx}`} className="rv-partner-card">
+              <div>{item.title}</div>
+              <p>{item.text}</p>
+            </div>
+          ))}
+        </div>
+      </div>
 
       <div className="rv-actions">
         {!showForm && (
@@ -243,6 +278,11 @@ export function ReviewsPage({ toast }) {
       <style>{`
         .rv-page { max-width: 900px; margin: 0 auto; padding: 60px 32px; }
         .rv-actions { margin: 20px 0; }
+        .rv-partners{margin:22px 0;border:1px solid var(--glass-border);border-radius:var(--r-lg);background:var(--glass);padding:18px;}
+        .rv-partners-title{font-family:var(--ff-d);font-size:26px;color:var(--text);margin-bottom:12px;}
+        .rv-partners-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+        .rv-partner-card{border:1px solid var(--glass-border);border-radius:var(--r-md);background:rgba(255,255,255,.03);padding:12px;color:var(--text);font-size:13px;}
+        .rv-partner-card p{margin-top:6px;color:var(--muted-strong);font-size:12px;line-height:1.55;}
         .rv-form-card {
           border: 1px solid var(--glass-border);
           border-radius: var(--r-lg);
@@ -274,7 +314,8 @@ export function ReviewsPage({ toast }) {
         .rv-reply-label { display:flex; align-items:center; gap:8px; font-size:11px; letter-spacing:1.5px; text-transform:uppercase; color:var(--gold); margin-bottom:6px; }
         .rv-reply-text { font-size:13px; color:var(--muted-strong); line-height:1.6; }
         .rv-empty { text-align:center; padding:60px 0; }
-        @media(max-width:640px) { .rv-page { padding:36px 16px; } }
+        @media(max-width:860px) { .rv-partners-grid{grid-template-columns:1fr 1fr;} }
+        @media(max-width:640px) { .rv-page { padding:36px 16px; } .rv-partners-grid{grid-template-columns:1fr;} }
       `}</style>
     </div>
   );

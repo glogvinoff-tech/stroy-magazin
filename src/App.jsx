@@ -238,9 +238,11 @@ function AppContent() {
     });
   }, []);
 
-  const setQty = (id, delta) => setCart((c) => c.flatMap((i) => {
+  const setQty = (id, delta, mode = 'delta') => setCart((c) => c.flatMap((i) => {
     if (i.id !== id) return [i];
-    const nextQty = (Number(i.qty) || 0) + (Number(delta) || 0);
+    const nextQty = mode === 'set'
+      ? Math.floor(Number(delta) || 0)
+      : (Number(i.qty) || 0) + (Number(delta) || 0);
     return nextQty <= 0 ? [] : [{ ...i, qty: nextQty }];
   }));
   const removeItem = (id) => setCart((c) => c.filter((i) => i.id !== id));

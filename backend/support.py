@@ -25,8 +25,8 @@ def _is_admin(user: User) -> bool:
         if getattr(user, "role", None) and getattr(user.role, "name", None) == "admin":
             return True
     except Exception:
-        return False
-    return False
+        pass
+    return int(getattr(user, "role_id", 0) or 0) == 2
 
 
 def _thread_payload(thread: SupportThread) -> dict:

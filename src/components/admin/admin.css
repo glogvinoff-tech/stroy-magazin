@@ -154,13 +154,18 @@
   display:flex;
   flex-direction:column;
   gap:10px;
-  justify-content:flex-end;
+  justify-content:flex-start;
   max-height:none;
   min-height:0;
+  overscroll-behavior:contain;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(201,169,110,0.55) transparent;
   background:
     radial-gradient(700px 220px at 0% 0%, rgba(201,169,110,0.10), transparent 60%),
     radial-gradient(760px 260px at 100% 20%, rgba(232,202,144,0.06), transparent 60%);
 }
+.admin-chat-list::-webkit-scrollbar{width:8px;}
+.admin-chat-list::-webkit-scrollbar-thumb{background:rgba(201,169,110,0.45);border-radius:999px;}
 .admin-msg{display:flex;}
 .admin-msg.user{justify-content:flex-start;}
 .admin-msg.admin{justify-content:flex-end;}

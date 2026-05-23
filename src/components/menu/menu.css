@@ -126,7 +126,7 @@
   min-width: min(520px, 100%);
 }
 
-.menu-search svg {
+.menu-search > svg {
   position: absolute;
   left: 14px;
   top: 50%;
@@ -160,6 +160,14 @@
   justify-content: center;
   cursor: pointer;
   transition: all 0.25s var(--ease);
+}
+.menu-search-clear svg {
+  position: static;
+  width: 16px;
+  height: 16px;
+  transform: none;
+  color: currentColor;
+  pointer-events: none;
 }
 .menu-search-clear:hover {
   border-color: var(--red);
@@ -660,3 +668,25 @@
   color: #ff6b7a;
   border-color: rgba(232,74,95,0.6);
 }
+.dish-img.angle-a{transform:scale(1.12) rotate(-1.5deg);transform-origin:40% 50%;}
+.dish-img.angle-b{transform:scale(1.18) rotate(1.5deg);transform-origin:65% 45%;}
+.dish-gallery{position:absolute;left:14px;bottom:14px;display:flex;gap:8px;z-index:4;}
+.dish-gallery-thumb{width:46px;height:46px;border-radius:10px;border:1px solid rgba(255,255,255,.22);background:rgba(0,0,0,.36);padding:3px;cursor:pointer;overflow:hidden;transition:border-color .22s var(--ease),transform .22s var(--ease);}
+.dish-gallery-thumb.on{border-color:var(--accent);transform:translateY(-2px);}
+.dish-gallery-thumb img{width:100%;height:100%;object-fit:cover;border-radius:7px;}
+.dish-gallery-thumb img.angle-a{transform:scale(1.14) rotate(-1.5deg);}
+.dish-gallery-thumb img.angle-b{transform:scale(1.2) rotate(1.5deg);}
+.dish-reputation{margin-top:14px;border:1px solid var(--glass-border);border-radius:var(--r-md);background:var(--glass);padding:12px;display:flex;flex-direction:column;gap:10px;}
+.dish-rep-head{display:flex;align-items:center;justify-content:space-between;gap:10px;color:var(--text);font-size:13px;}
+.dish-rep-head strong{color:var(--accent);}
+.dish-stars{display:flex;align-items:center;gap:3px;color:var(--accent);font-size:16px;}
+.dish-stars em{margin-left:8px;color:var(--muted);font-size:12px;font-style:normal;}
+.dish-review-form{display:grid;gap:8px;}
+.dish-review-stars{display:flex;gap:2px;}
+.dish-review-stars button{border:0;background:transparent;color:rgba(255,255,255,.25);font-size:20px;cursor:pointer;padding:0 2px;transition:color .18s var(--ease),transform .18s var(--ease);}
+.dish-review-stars button.on{color:var(--accent);}
+.dish-review-stars button:hover{transform:translateY(-1px);}
+.dish-review{border-top:1px solid var(--glass-border);padding-top:8px;color:var(--muted-strong);font-size:12px;line-height:1.5;}
+.dish-review strong{color:var(--text);}
+.dish-review span{color:var(--accent);}
+.dish-review p{margin-top:4px;}

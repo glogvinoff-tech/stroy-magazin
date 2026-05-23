@@ -12,6 +12,14 @@ import './admin.css';
 const HERO_CONFIG_SUFFIX = 'hero_config';
 const HERO_CONFIG_KEY = makeStorageKey(HERO_CONFIG_SUFFIX);
 const DEFAULT_HERO_CONFIG = SLIDES.map(sl => ({ dishId: sl.dishId, tag: '', desc: '', price: sl.price, weight: sl.weight, mode: 'dish', titleOverride: '', customTitle: '', customImg: '' }));
+const REVIEW_PARTNERS_SUFFIX = 'review_partners';
+const REVIEW_PARTNERS_KEY = makeStorageKey(REVIEW_PARTNERS_SUFFIX);
+const DEFAULT_REVIEW_PARTNERS = [
+  { title: 'Частные мастера', text: 'Материалы и расходники для ежедневных объектов.' },
+  { title: 'Строительные бригады', text: 'Повторяемые заказы, комплектация и доставка на адрес.' },
+  { title: 'Дизайнеры и прорабы', text: 'Подбор отделки, крепежа и инженерных позиций под проект.' },
+  { title: 'Домовладельцы', text: 'Ремонт, дача, мастерская и бытовые задачи без лишней сложности.' },
+];
 
 const ADMIN_LAYOUT_SCALE = 2;
 const ADMIN_LAYOUT_W = 480 * ADMIN_LAYOUT_SCALE;
@@ -41,6 +49,11 @@ async function downloadImageBlob(url, filename) {
 function loadHeroConfig() {
   const parsed = readJsonStorageWithLegacy(HERO_CONFIG_SUFFIX, DEFAULT_HERO_CONFIG, Array.isArray);
   return Array.isArray(parsed) ? parsed : DEFAULT_HERO_CONFIG;
+}
+
+function loadReviewPartners() {
+  const parsed = readJsonStorageWithLegacy(REVIEW_PARTNERS_SUFFIX, DEFAULT_REVIEW_PARTNERS, Array.isArray);
+  return Array.isArray(parsed) && parsed.length ? parsed : DEFAULT_REVIEW_PARTNERS;
 }
 
 function clampPercent(raw) {
@@ -121,6 +134,7 @@ export function AdminModal({ onClose, toast }) {
   const [menuEditingId, setMenuEditingId] = useState(null);
   const [menuUploading, setMenuUploading] = useState(false);
   const menuUploadInputRef = useRef(null);
+  const menuGalleryUploadInputRef = useRef(null);
   const eventUploadInputRef = useRef(null);
   const [eventUploading, setEventUploading] = useState(false);
   const [menuForm, setMenuForm] = useState({
@@ -131,6 +145,7 @@ export function AdminModal({ onClose, toast }) {
     badge: '',
     tags: '',
     img: '',
+    gallery: '',
     desc: '',
     ingr: '',
     is_active: true,
@@ -191,6 +206,7 @@ export function AdminModal({ onClose, toast }) {
 
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [reviews, setReviews] = useState([]);
+  const [reviewPartners, setReviewPartners] = useState(loadReviewPartners);
   const [reviewReplyId, setReviewReplyId] = useState(null);
   const [reviewReplyDraft, setReviewReplyDraft] = useState('');
   const [reviewUpdatingId, setReviewUpdatingId] = useState(null);
@@ -602,6 +618,7 @@ export function AdminModal({ onClose, toast }) {
       badge: '',
       tags: '',
       img: '',
+      gallery: '',
       desc: '',
       ingr: '',
       is_active: true,
@@ -618,6 +635,7 @@ export function AdminModal({ onClose, toast }) {
       badge: item.badge || '',
       tags: Array.isArray(item.tags) ? item.tags.join(', ') : '',
       img: item.img || '',
+      gallery: Array.isArray(item.gallery) ? item.gallery.join('\n') : '',
       desc: item.desc || '',
       ingr: item.ingr || '',
       is_active: Boolean(item.is_active),
@@ -634,6 +652,7 @@ export function AdminModal({ onClose, toast }) {
       badge: menuForm.badge.trim() || null,
       tags: menuForm.tags.split(',').map((t) => t.trim()).filter(Boolean),
       img: menuForm.img.trim() || null,
+      gallery: String(menuForm.gallery || '').split(/\r?\n|,/).map((x) => x.trim()).filter(Boolean),
       desc: menuForm.desc.trim() || null,
       ingr: menuForm.ingr.trim() || null,
       is_active: Boolean(menuForm.is_active),
@@ -666,12 +685,20 @@ export function AdminModal({ onClose, toast }) {
     }
   };
 
-  const handleMenuImageUpload = async (file) => {
+  const handleMenuImageUpload = async (file, target = 'main') => {
     if (!adminId || !file) return;
     setMenuUploading(true);
     try {
       const uploaded = await api.uploads.image(adminId, file, 'menu');
-      setMenuForm((prev) => ({ ...prev, img: String(uploaded?.url || '') }));
+      const url = String(uploaded?.url || '');
+      setMenuForm((prev) => {
+        if (target === 'gallery') {
+          const existing = String(prev.gallery || '').split(/\r?\n|,/).map((x) => x.trim()).filter(Boolean);
+          const next = url && !existing.includes(url) ? [...existing, url] : existing;
+          return { ...prev, gallery: next.join('\n') };
+        }
+        return { ...prev, img: url };
+      });
       toast?.ok?.('Изображение загружено');
     } catch (e) {
       toast?.err?.(e.message || 'Не удалось загрузить изображение');
@@ -751,6 +778,29 @@ export function AdminModal({ onClose, toast }) {
 
   const updateHeroSlot = (index, field, value) => {
     setHeroConfig(prev => prev.map((slot, i) => i === index ? { ...slot, [field]: value } : slot));
+  };
+
+  const updateReviewPartner = (index, field, value) => {
+    setReviewPartners((prev) => prev.map((item, i) => (i === index ? { ...item, [field]: value } : item)));
+  };
+
+  const addReviewPartner = () => {
+    setReviewPartners((prev) => [...prev, { title: '', text: '' }]);
+  };
+
+  const removeReviewPartner = (index) => {
+    setReviewPartners((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const saveReviewPartners = () => {
+    const cleaned = reviewPartners
+      .map((item) => ({ title: String(item.title || '').trim(), text: String(item.text || '').trim() }))
+      .filter((item) => item.title || item.text);
+    const next = cleaned.length ? cleaned : DEFAULT_REVIEW_PARTNERS;
+    setReviewPartners(next);
+    localStorage.setItem(REVIEW_PARTNERS_KEY, JSON.stringify(next));
+    window.dispatchEvent(new StorageEvent('storage', { key: REVIEW_PARTNERS_KEY, newValue: JSON.stringify(next) }));
+    toast?.ok?.('Блок сохранен');
   };
 
   const handleReviewReply = async (reviewId) => {
@@ -1534,17 +1584,11 @@ export function AdminModal({ onClose, toast }) {
           <button type="button" className={`admin-tab${tab === 'restaurants' ? ' on' : ''}`} onClick={() => setTab('restaurants')}>
             <Icons.Map /> Магазины
           </button>
-          <button type="button" className={`admin-tab${tab === 'tables' ? ' on' : ''}`} onClick={() => setTab('tables')}>
-            <Icons.Lock /> {t('admin_tab_tables')}
-          </button>
           <button type="button" className={`admin-tab${tab === 'reviews' ? ' on' : ''}`} onClick={() => { setTab('reviews'); loadReviews(); }}>
             <Icons.Star /> {t('admin_tab_reviews')}
           </button>
           <button type="button" className={`admin-tab${tab === 'hero' ? ' on' : ''}`} onClick={() => { setTab('hero'); loadHeroMenuItems(); }}>
             <Icons.Image /> {t('admin_hero_tab')}
-          </button>
-          <button type="button" className={`admin-tab${tab === 'contacts' ? ' on' : ''}`} onClick={() => { setTab('contacts'); loadContactMessages(); }}>
-            <Icons.Message /> Сообщения
           </button>
           <button type="button" className={`admin-tab${tab === 'translations' ? ' on' : ''}`} onClick={() => setTab('translations')}>
             <Icons.Globe /> Переводы
@@ -1791,1093 +1835,6 @@ export function AdminModal({ onClose, toast }) {
             </div>
           )}
 
-          {tab === 'tables' && (
-            <div className="admin-split">
-              <div className="admin-panel">
-                <div className="admin-panel-h">
-                  <div className="admin-panel-title">{t('admin_tab_tables')}</div>
-                  <button
-                    type="button"
-                    className="btn btn-ghost"
-                    onClick={() => (adminTablesRestaurantId ? loadAdminTables(adminTablesRestaurantId) : loadAdminRestaurants())}
-                    disabled={adminTablesLoading || adminRestaurantsLoading}
-                  >
-                    <Icons.Refresh /> {t('refresh')}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-outline-gold"
-                    onClick={() => openCreateTable()}
-                    disabled={!adminTablesRestaurantId || tableEditorBusy}
-                    title={!adminTablesRestaurantId ? t('admin_pick_restaurant') : undefined}
-                  >
-                    + {t('admin_table_add')}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-ghost"
-                    onClick={deleteAllTablesForRestaurant}
-                    disabled={!adminTablesRestaurantId || tableEditorBusy || adminTablesLoading}
-                    title={t('admin_table_delete_all')}
-                  >
-                    <Icons.Trash /> {t('admin_table_delete_all')}
-                  </button>
-                </div>
-                <div className="admin-panel-scroll">
-                  <div className="fg" style={{ marginBottom: 10 }}>
-                    <div className="fl"><Icons.Map /> {t('admin_restaurant')}</div>
-                    <select
-                      className="fi"
-                      value={adminTablesRestaurantId || ''}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setAdminTablesRestaurantId(v ? Number(v) : null);
-                      }}
-                      disabled={adminRestaurantsLoading}
-                    >
-                      <option value="">{t('admin_pick_restaurant')}</option>
-                      {adminRestaurants.map((r) => (
-                        <option key={r.id} value={r.id}>{r.address}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {adminRestaurantsLoading && <div className="admin-muted">{t('admin_loading_restaurants')}</div>}
-                  {!adminRestaurantsLoading && adminTablesRestaurantId && adminTablesLoading && <div className="admin-muted">{t('admin_loading_tables')}</div>}
-
-                  {!adminTablesLoading && adminTablesRestaurantId && adminTables.length === 0 && (
-                    <div className="admin-muted">{t('admin_no_tables_for_restaurant')}</div>
-                  )}
-
-                  {!adminTablesLoading && adminTablesRestaurantId && adminTables.length > 0 && (
-                    <>
-                      <div className="admin-stub" style={{ marginBottom: 12 }}>
-                        <div className="admin-stub-h">{t('admin_tables_manage')}</div>
-                        <div className="admin-muted">{t('admin_blocking_help')}</div>
-                      </div>
-
-                      {tableEditor && (
-                        <div className="admin-stub" style={{ marginBottom: 12 }}>
-                          <div className="admin-stub-h">
-                            {tableEditor.mode === 'create' ? t('admin_table_add') : t('admin_table_edit')}
-                          </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px', gap: 10, marginTop: 10 }}>
-                            <div className="fg" style={{ marginBottom: 0 }}>
-                              <div className="fl">{t('admin_table_name')}</div>
-                              <input
-                                className="fi"
-                                type="text"
-                                value={tableEditor.name}
-                                onChange={(e) => setTableEditor((p) => ({ ...p, name: e.target.value }))}
-                                disabled={tableEditorBusy}
-                              />
-                            </div>
-                            <div className="fg" style={{ marginBottom: 0 }}>
-                              <div className="fl">{t('admin_table_seats')}</div>
-                              <select
-                                className="fi"
-                                value={tableEditor.seats}
-                                onChange={(e) => setTableEditor((p) => ({ ...p, seats: Number(e.target.value) }))}
-                                disabled={tableEditorBusy}
-                              >
-                                {[2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
-                              </select>
-                            </div>
-                          </div>
-
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px', gap: 10 }}>
-                            <div className="fg" style={{ marginBottom: 0 }}>
-                              <div className="fl">{t('admin_table_type')}</div>
-                              <select
-                                className="fi"
-                                value={tableEditor.kind}
-                                onChange={(e) => setTableEditor((p) => ({ ...p, kind: e.target.value }))}
-                                disabled={tableEditorBusy}
-                              >
-                                <option value="standard">{t('admin_table_type_standard')}</option>
-                                <option value="round">{t('admin_table_type_round')}</option>
-                                <option value="booth">{t('admin_table_type_booth')}</option>
-                                <option value="bar">{t('admin_table_type_bar')}</option>
-                              </select>
-                            </div>
-                            <div className="fg" style={{ marginBottom: 0 }}>
-                              <div className="fl">{t('admin_table_size')}</div>
-                              <input
-                                className="fi"
-                                type="number"
-                                min="0.7"
-                                max="1.6"
-                                step="0.05"
-                                value={tableEditor.scale}
-                                onChange={(e) => setTableEditor((p) => ({ ...p, scale: Number(e.target.value) }))}
-                                disabled={tableEditorBusy}
-                              />
-                            </div>
-                          </div>
-
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
-                            <button type="button" className="btn btn-ghost" onClick={() => openCreateTable({ seats: 2, kind: 'standard' })} disabled={tableEditorBusy}>
-                              +2
-                            </button>
-                            <button type="button" className="btn btn-ghost" onClick={() => openCreateTable({ seats: 4, kind: 'standard' })} disabled={tableEditorBusy}>
-                              +4
-                            </button>
-                            <button type="button" className="btn btn-ghost" onClick={() => openCreateTable({ seats: 4, kind: 'round' })} disabled={tableEditorBusy}>
-                              {t('admin_table_type_round')}
-                            </button>
-                            <button type="button" className="btn btn-ghost" onClick={() => openCreateTable({ seats: 4, kind: 'booth' })} disabled={tableEditorBusy}>
-                              {t('admin_table_type_booth')}
-                            </button>
-                            <button type="button" className="btn btn-ghost" onClick={() => openCreateTable({ seats: 2, kind: 'bar', scale: 0.9 })} disabled={tableEditorBusy}>
-                              {t('admin_table_type_bar')}
-                            </button>
-                            <div style={{ flex: 1 }} />
-                            <button type="button" className="btn btn-outline-gold" onClick={saveTableEditor} disabled={tableEditorBusy || !String(tableEditor.name || '').trim()}>
-                              {t('admin_save')}
-                            </button>
-                            <button type="button" className="btn btn-ghost" onClick={() => setTableEditor(null)} disabled={tableEditorBusy}>
-                              {t('close')}
-                            </button>
-                            {tableEditor.mode === 'edit' && (
-                              <button type="button" className="btn btn-ghost" onClick={() => deleteTable({ id: tableEditor.id })} disabled={tableEditorBusy}>
-                                <Icons.Trash /> {t('admin_table_delete')}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="admin-table-grid">
-                        {adminTables.map((tbl) => {
-                          const busy = adminTableUpdatingId === tbl.id;
-                          const statusClass = tbl.is_blocked ? 'bad' : 'ok';
-                          const statusText = tbl.is_blocked ? t('admin_table_status_blocked') : t('admin_table_status_available');
-                          const num = String(tbl?.name || '').match(/(\d+)/);
-                          const title = num ? t('admin_table_number', { n: num[1] }) : (tbl?.name || `#${tbl.id}`);
-                          return (
-                            <div key={tbl.id} style={{ position: 'relative' }}>
-                              <button
-                                type="button"
-                                className={`admin-table-card${tbl.is_blocked ? ' blocked' : ''}`}
-                                onClick={() => toggleTableBlocked(tbl)}
-                                disabled={busy}
-                                title={t('admin_table_toggle_hint')}
-                                style={{ width: '100%' }}
-                              >
-                                <div className="admin-table-top">
-                                  <div className="admin-table-title">{title}</div>
-                                  <span className={`admin-status-dot ${statusClass}`} title={statusText} aria-label={statusText} />
-                                </div>
-                                <div className="admin-table-sub">{t('seats', { count: tbl.seats })} · {t('admin_id')}: {tbl.id}</div>
-                              </button>
-                              <div style={{ position: 'absolute', top: 10, right: 10, display: 'flex', gap: 6 }}>
-                                <button
-                                  type="button"
-                                  className="ico-btn"
-                                  onClick={(e) => { e.stopPropagation(); openEditTable(tbl); }}
-                                  title={t('admin_table_edit')}
-                                  aria-label={t('admin_table_edit')}
-                                >
-                                  <Icons.Edit />
-                                </button>
-                                <button
-                                  type="button"
-                                  className="ico-btn"
-                                  onClick={(e) => { e.stopPropagation(); deleteTable(tbl); }}
-                                  title={t('admin_table_delete')}
-                                  aria-label={t('admin_table_delete')}
-                                >
-                                  <Icons.Trash />
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              <div className="admin-stub">
-                <div className="admin-stub-h">{t('admin_layout_title')}</div>
-                <div className="admin-muted">{t('admin_layout_help')}</div>
-
-                {!adminTablesRestaurantId && (
-                  <div className="admin-muted" style={{ marginTop: 12 }}>
-                    {t('admin_pick_restaurant')}
-                  </div>
-                )}
-
-                {adminTablesRestaurantId && !adminTablesLoading && (
-                  <div style={{ marginTop: 12 }}>
-                    {/* Improved Toolbar with Logical Blocks */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
-                      {/* Block 1: Добавить столы */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'rgba(0,0,0,0.15)', borderRadius: 10 }}>
-                        <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>Добавить</span>
-                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                          {[
-                            { seats: 2, kind: 'standard', icon: '▢', title: '2 места' },
-                            { seats: 4, kind: 'standard', icon: '▭', title: '4 места' },
-                            { seats: 4, kind: 'round', icon: '●', title: 'Круглый' },
-                            { seats: 4, kind: 'booth', icon: '⊞', title: 'Кабинка' },
-                            { seats: 2, kind: 'bar', scale: 0.9, icon: '—', title: 'Барная стойка' },
-                          ].map((preset) => (
-                            <button
-                              key={`${preset.kind}-${preset.seats}`}
-                              type="button"
-                              className="btn btn-ghost"
-                              style={{
-                                fontSize: 14,
-                                padding: '6px 8px',
-                                minWidth: 0,
-                                border: '1.5px solid rgba(201,169,110,0.40)',
-                                background: 'rgba(201,169,110,0.06)',
-                                color: 'var(--gold)',
-                              }}
-                              onClick={() => quickAddTable(preset)}
-                              disabled={tableEditorBusy}
-                              title={preset.title}
-                            >
-                              {preset.icon}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Block 2: Режим */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'rgba(0,0,0,0.15)', borderRadius: 10 }}>
-                        <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>Режим</span>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          {[
-                            ['pan', '🖱'],
-                            ['select', '▢'],
-                          ].map(([toolId, icon]) => (
-                            <button
-                              key={toolId}
-                              type="button"
-                              className={`btn ${adminLayoutTool === toolId ? 'btn-gold' : 'btn-ghost'}`}
-                              style={{ fontSize: 12, padding: '6px 10px', minWidth: 0 }}
-                              onClick={() => setAdminLayoutTool(toolId)}
-                              disabled={tableEditorBusy}
-                              title={toolId === 'pan' ? 'Панорама (Space)' : 'Выбор'}
-                            >
-                              {icon}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Block 3: Конструктор */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'rgba(0,0,0,0.15)', borderRadius: 10 }}>
-                        <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px' }}>Конструктор</span>
-                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                          {[
-                            ['wall', '|'],
-                            ['door', '🚪'],
-                            ['window', '▭'],
-                            ['zone', '⊕'],
-                            ['text', 'Т'],
-                          ].map(([toolId, icon]) => (
-                            <button
-                              key={toolId}
-                              type="button"
-                              className={adminLayoutTool === toolId ? 'btn btn-gold' : 'btn btn-ghost'}
-                              style={{ fontSize: 11, padding: '6px 10px', minWidth: 0 }}
-                              onClick={() => setAdminLayoutTool(toolId)}
-                              disabled={tableEditorBusy}
-                              title={toolId}
-                            >
-                              {icon}
-                            </button>
-                          ))}
-                        </div>
-                        {(adminLayoutTool === 'zone' || adminLayoutTool === 'text') && (
-                          <input
-                            className="fi"
-                            type="text"
-                            value={adminLayoutDraftText}
-                            onChange={(e) => setAdminLayoutDraftText(e.target.value)}
-                            placeholder="Подпись"
-                            disabled={tableEditorBusy}
-                            style={{ fontSize: 11, padding: '6px 8px', width: 120, marginLeft: 8 }}
-                          />
-                        )}
-                      </div>
-
-                      {/* Actions row */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        {adminLayoutSelectedDecorId && (
-                          <button
-                            type="button"
-                            className="btn btn-ghost"
-                            style={{ fontSize: 11, padding: '6px 10px', color: 'rgba(220,80,70,0.9)' }}
-                            onClick={() => {
-                              setAdminLayoutDecor((prev) => prev.filter((item) => item.id !== adminLayoutSelectedDecorId));
-                              setAdminLayoutSelectedDecorId(null);
-                            }}
-                            disabled={tableEditorBusy}
-                          >
-                            🗑 Удалить объект
-                          </button>
-                        )}
-                        {adminLayoutDecor.length > 0 && (
-                          <button
-                            type="button"
-                            className="btn btn-ghost"
-                            style={{ fontSize: 11, padding: '6px 10px', color: 'rgba(220,80,70,0.8)' }}
-                            onClick={deleteAllDecor}
-                            disabled={tableEditorBusy}
-                            title={`Удалить все ${adminLayoutDecor.length} элементов конструктора`}
-                          >
-                            🗑 Очистить всё ({adminLayoutDecor.length})
-                          </button>
-                        )}
-                        {adminLayoutSelectedId && (
-                          <button
-                            type="button"
-                            className="btn btn-ghost"
-                            style={{ fontSize: 11, padding: '6px 10px', color: 'rgba(220,80,70,0.9)' }}
-                            onClick={() => {
-                              const sel = adminTables.find(t => t.id === adminLayoutSelectedId);
-                              if (sel) deleteTable(sel);
-                              setAdminLayoutSelectedId(null);
-                            }}
-                            disabled={tableEditorBusy}
-                          >
-                            ✕ {t('admin_table_delete')}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    <div style={{ width: '100%', maxWidth: 1040, background: 'linear-gradient(180deg,#141414,#0a0a0a)', borderRadius: 10, overflow: 'hidden', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.04)', position: 'relative' }}
-                      onClick={() => { setAdminLayoutSelectedId(null); setAdminLayoutSelectedDecorId(null); }}
-                    >
-                      <svg
-                        ref={adminLayoutSvgRef}
-                        viewBox={adminLayoutViewBox.str}
-                        preserveAspectRatio="xMidYMid meet"
-                        style={{ display: 'block', width: '100%', height: 'auto', touchAction: 'none' }}
-                        onPointerDown={(e) => {
-                          if (tableEditorBusy) return;
-                          if (e.button != null && e.button !== 0) return;
-                          const pt = adminLayoutClientToSvg(e.clientX, e.clientY);
-                          if (!pt) return;
-                          if (adminLayoutTool !== 'pan') {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            if (adminLayoutTool !== 'select') addDecorAtPoint(pt);
-                            return;
-                          }
-                          e.preventDefault();
-                          e.stopPropagation();
-
-                          const zoom = adminLayoutViewBox.z;
-                          const startPt = pt;
-                          const startPan = { x: adminLayoutViewBox.x, y: adminLayoutViewBox.y };
-
-                          const moveHandler = (ev) => {
-                            const p = adminLayoutClientToSvg(ev.clientX, ev.clientY);
-                            if (!p) return;
-                            const dx = p.x - startPt.x;
-                            const dy = p.y - startPt.y;
-                            setAdminLayoutPan(adminLayoutClampPan({ x: startPan.x - dx, y: startPan.y - dy }, zoom));
-                          };
-
-                          const upHandler = () => {
-                            const pan = adminLayoutPanDragRef.current;
-                            adminLayoutPanDragRef.current = null;
-                            if (pan?.moveHandler) window.removeEventListener('pointermove', pan.moveHandler);
-                            if (pan?.upHandler) window.removeEventListener('pointerup', pan.upHandler);
-                          };
-
-                          adminLayoutPanDragRef.current = { moveHandler, upHandler };
-                          window.addEventListener('pointermove', moveHandler);
-                          window.addEventListener('pointerup', upHandler);
-                        }}
-                        onWheel={(e) => {
-                          if (!e.ctrlKey && !e.metaKey) return;
-                          if (tableEditorBusy) return;
-                          const pt = adminLayoutClientToSvg(e.clientX, e.clientY);
-                          if (!pt) return;
-                          e.preventDefault();
-                          const factor = Math.exp((-Number(e.deltaY) || 0) / 250);
-                          adminLayoutZoomAt(pt, adminLayoutZoom * factor);
-                        }}
-                      >
-                        <defs>
-                          <linearGradient id="adm-floor" x1="0" y1="0" x2="1" y2="1">
-                            <stop offset="0" stopColor="rgba(255,255,255,0.06)" />
-                            <stop offset="1" stopColor="rgba(201,169,110,0.04)" />
-                          </linearGradient>
-                          <filter id="adm-shadow" x="-50%" y="-50%" width="200%" height="200%">
-                            <feDropShadow dx="0" dy="3" stdDeviation="4" floodOpacity="0.28"/>
-                          </filter>
-                          <filter id="adm-glow" x="-60%" y="-60%" width="220%" height="220%">
-                            <feDropShadow dx="0" dy="0" stdDeviation="5" floodColor="rgba(201,169,110,0.6)" floodOpacity="1" />
-                          </filter>
-                        </defs>
-                        <rect x="0" y="0" width={ADMIN_LAYOUT_W} height={ADMIN_LAYOUT_H} fill="rgba(0,0,0,0.16)" />
-                        {Array.from({ length: 24 }).map((_, idx) => (
-                          <line key={`grid-v-${idx}`} x1={idx * 40} y1="0" x2={idx * 40} y2={ADMIN_LAYOUT_H} stroke="rgba(255,255,255,0.035)" strokeWidth="1" />
-                        ))}
-                        {Array.from({ length: 16 }).map((_, idx) => (
-                          <line key={`grid-h-${idx}`} x1="0" y1={idx * 40} x2={ADMIN_LAYOUT_W} y2={idx * 40} stroke="rgba(255,255,255,0.035)" strokeWidth="1" />
-                        ))}
-                        <rect x={10 * ADMIN_LAYOUT_SCALE} y={10 * ADMIN_LAYOUT_SCALE} width={460 * ADMIN_LAYOUT_SCALE} height={300 * ADMIN_LAYOUT_SCALE} rx={18 * ADMIN_LAYOUT_SCALE} fill="url(#adm-floor)" stroke="rgba(255,255,255,0.07)" />
-                        
-                        {/* ВХОД text with background */}
-                        <rect x={20 * ADMIN_LAYOUT_SCALE} y={36 * ADMIN_LAYOUT_SCALE} width={58 * ADMIN_LAYOUT_SCALE} height={20 * ADMIN_LAYOUT_SCALE} rx={4 * ADMIN_LAYOUT_SCALE} fill="rgba(201,169,110,0.15)" stroke="rgba(201,169,110,0.35)" strokeWidth="1" />
-                        <text x={28 * ADMIN_LAYOUT_SCALE} y={48 * ADMIN_LAYOUT_SCALE} fill="rgba(201,169,110,0.85)" fontSize="11" fontFamily="system-ui, -apple-system, Segoe UI, Roboto, Arial" fontWeight="600" letterSpacing="2">ВХОД</text>
-                        
-                        {/* ОКНА text with background */}
-                        <rect x={380 * ADMIN_LAYOUT_SCALE} y={36 * ADMIN_LAYOUT_SCALE} width={52 * ADMIN_LAYOUT_SCALE} height={18 * ADMIN_LAYOUT_SCALE} rx={4 * ADMIN_LAYOUT_SCALE} fill="rgba(136,191,255,0.12)" stroke="rgba(136,191,255,0.30)" strokeWidth="1" />
-                        <text x={388 * ADMIN_LAYOUT_SCALE} y={48 * ADMIN_LAYOUT_SCALE} fill="rgba(136,191,255,0.80)" fontSize="10" fontFamily="system-ui, -apple-system, Segoe UI, Roboto, Arial" fontWeight="600" letterSpacing="2">ОКНА</text>
-                        
-                        {/* КУХНЯ text with background */}
-                        <rect x={364 * ADMIN_LAYOUT_SCALE} y={224 * ADMIN_LAYOUT_SCALE} width={60 * ADMIN_LAYOUT_SCALE} height={18 * ADMIN_LAYOUT_SCALE} rx={4 * ADMIN_LAYOUT_SCALE} fill="rgba(192,110,100,0.12)" stroke="rgba(192,110,100,0.30)" strokeWidth="1" />
-                        <text x={372 * ADMIN_LAYOUT_SCALE} y={236 * ADMIN_LAYOUT_SCALE} fill="rgba(192,110,100,0.80)" fontSize="10" fontFamily="system-ui, -apple-system, Segoe UI, Roboto, Arial" fontWeight="600" letterSpacing="2">КУХНЯ</text>
-                        
-                        <rect x={18 * ADMIN_LAYOUT_SCALE} y={238 * ADMIN_LAYOUT_SCALE} width={444 * ADMIN_LAYOUT_SCALE} height={64 * ADMIN_LAYOUT_SCALE} rx={16 * ADMIN_LAYOUT_SCALE} fill="rgba(0,0,0,0.20)" stroke="rgba(255,255,255,0.06)" />
-                        <text x={32 * ADMIN_LAYOUT_SCALE} y={265 * ADMIN_LAYOUT_SCALE} fill="rgba(242,237,230,0.38)" fontSize="10" fontFamily="system-ui, -apple-system, Segoe UI, Roboto, Arial" letterSpacing="2">BAR</text>
-
-                        {adminLayoutDecor.map((item) => {
-                          const selectedDecor = adminLayoutSelectedDecorId === item.id;
-                          const startDecorDrag = (e) => {
-                            if (adminLayoutTool !== 'select') return;
-                            const pt = adminLayoutClientToSvg(e.clientX, e.clientY);
-                            if (!pt) return;
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setAdminLayoutSelectedDecorId(item.id);
-                            setAdminLayoutSelectedId(null);
-                            const moveHandler = (ev) => {
-                              const nextPt = adminLayoutClientToSvg(ev.clientX, ev.clientY);
-                              const drag = adminLayoutDecorDragRef.current;
-                              if (!nextPt || !drag) return;
-                              const dx = nextPt.x - drag.start.x;
-                              const dy = nextPt.y - drag.start.y;
-                              setAdminLayoutDecor((prev) => prev.map((entry) => (
-                                entry.id === drag.id ? moveDecorBy(drag.base, dx, dy) : entry
-                              )));
-                            };
-                            const upHandler = () => {
-                              const drag = adminLayoutDecorDragRef.current;
-                              adminLayoutDecorDragRef.current = null;
-                              if (drag?.moveHandler) window.removeEventListener('pointermove', drag.moveHandler);
-                              if (drag?.upHandler) window.removeEventListener('pointerup', drag.upHandler);
-                            };
-                            adminLayoutDecorDragRef.current = { id: item.id, base: item, start: pt, moveHandler, upHandler };
-                            window.addEventListener('pointermove', moveHandler);
-                            window.addEventListener('pointerup', upHandler);
-                          };
-
-                          if (item.type === 'wall') {
-                            const centerX = (item.x1 + item.x2) / 2;
-                            const centerY = (item.y1 + item.y2) / 2;
-                            const rotation = Number(item.rotation || 0);
-                            return (
-                              <line
-                                key={item.id}
-                                x1={item.x1}
-                                y1={item.y1}
-                                x2={item.x2}
-                                y2={item.y2}
-                                stroke={selectedDecor ? 'rgba(255,255,255,0.98)' : (item.color || 'rgba(201,169,110,0.88)')}
-                                strokeWidth={selectedDecor ? 10 : 8}
-                                strokeLinecap="round"
-                                onPointerDown={startDecorDrag}
-                                onContextMenu={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  setAdminLayoutSelectedDecorId(item.id);
-                                  setAdminLayoutContextMenu({
-                                    decorId: item.id,
-                                    x: e.clientX,
-                                    y: e.clientY,
-                                  });
-                                }}
-                                style={{
-                                  cursor: adminLayoutTool === 'select' ? 'move' : 'default',
-                                  transform: rotation !== 0 ? `rotate(${rotation}deg)` : undefined,
-                                  transformOrigin: `${centerX}px ${centerY}px`,
-                                }}
-                              />
-                            );
-                          }
-                          if (item.type === 'window') {
-                            const rotation = Number(item.rotation || 0);
-                            const centerX = (item.x1 + item.x2) / 2;
-                            const centerY = (item.y1 + item.y2) / 2;
-                            return (
-                              <line
-                                key={item.id}
-                                x1={item.x1}
-                                y1={item.y1}
-                                x2={item.x2}
-                                y2={item.y2}
-                                stroke={selectedDecor ? '#ffffff' : (item.color || 'rgba(136,191,255,0.92)')}
-                                strokeWidth={selectedDecor ? 8 : 6}
-                                strokeLinecap="round"
-                                strokeDasharray="10 8"
-                                onPointerDown={startDecorDrag}
-                                onContextMenu={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  setAdminLayoutSelectedDecorId(item.id);
-                                  setAdminLayoutContextMenu({
-                                    decorId: item.id,
-                                    x: e.clientX,
-                                    y: e.clientY,
-                                  });
-                                }}
-                                style={{
-                                  cursor: adminLayoutTool === 'select' ? 'move' : 'default',
-                                  transform: rotation !== 0 ? `rotate(${rotation}deg)` : undefined,
-                                  transformOrigin: `${centerX}px ${centerY}px`,
-                                }}
-                              />
-                            );
-                          }
-                          if (item.type === 'door') {
-                            const r = Math.hypot((item.x2 - item.x1), (item.y2 - item.y1));
-                            const rotation = Number(item.rotation || 0);
-                            const centerX = (item.x1 + item.x2) / 2;
-                            const centerY = (item.y1 + item.y2) / 2;
-                            return (
-                              <g 
-                                key={item.id} 
-                                onPointerDown={startDecorDrag}
-                                onContextMenu={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  setAdminLayoutSelectedDecorId(item.id);
-                                  setAdminLayoutContextMenu({
-                                    decorId: item.id,
-                                    x: e.clientX,
-                                    y: e.clientY,
-                                  });
-                                }}
-                                style={{
-                                  cursor: adminLayoutTool === 'select' ? 'move' : 'default',
-                                  transform: rotation !== 0 ? `rotate(${rotation}deg)` : undefined,
-                                  transformOrigin: `${centerX}px ${centerY}px`,
-                                }}
-                              >
-                                <line x1={item.x1} y1={item.y1} x2={item.x2} y2={item.y2} stroke={selectedDecor ? '#fff' : 'rgba(201,169,110,0.88)'} strokeWidth={selectedDecor ? 5 : 4} strokeLinecap="round" />
-                                <path d={`M ${item.x1} ${item.y1} A ${r} ${r} 0 0 1 ${item.x2} ${item.y2}`} fill="none" stroke="rgba(255,255,255,0.30)" strokeWidth="2" />
-                              </g>
-                            );
-                          }
-                          if (item.type === 'zone') {
-                            const rotation = Number(item.rotation || 0);
-                            const centerX = item.x + item.w / 2;
-                            const centerY = item.y + item.h / 2;
-                            return (
-                              <g 
-                                key={item.id} 
-                                onPointerDown={startDecorDrag}
-                                onContextMenu={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  setAdminLayoutSelectedDecorId(item.id);
-                                  setAdminLayoutContextMenu({
-                                    decorId: item.id,
-                                    x: e.clientX,
-                                    y: e.clientY,
-                                  });
-                                }}
-                                style={{
-                                  cursor: adminLayoutTool === 'select' ? 'move' : 'default',
-                                  transform: rotation !== 0 ? `rotate(${rotation}deg)` : undefined,
-                                  transformOrigin: `${centerX}px ${centerY}px`,
-                                }}
-                              >
-                                <rect x={item.x} y={item.y} width={item.w} height={item.h} rx="16" fill="rgba(201,169,110,0.08)" stroke={selectedDecor ? '#fff' : 'rgba(201,169,110,0.42)'} strokeWidth={selectedDecor ? 3 : 2} strokeDasharray="10 6" />
-                                <text x={item.x + (item.w / 2)} y={item.y + (item.h / 2)} textAnchor="middle" fill="rgba(242,237,230,0.88)" fontSize="16" fontFamily="system-ui, -apple-system, Segoe UI, Roboto, Arial">{item.text || 'Зона'}</text>
-                              </g>
-                            );
-                          }
-                          if (item.type === 'text') {
-                            const rotation = Number(item.rotation || 0);
-                            return (
-                              <text
-                                key={item.id}
-                                x={item.x}
-                                y={item.y}
-                                textAnchor="middle"
-                                fill={selectedDecor ? '#ffffff' : 'rgba(242,237,230,0.76)'}
-                                fontSize="18"
-                                fontFamily="system-ui, -apple-system, Segoe UI, Roboto, Arial"
-                                onPointerDown={startDecorDrag}
-                                onContextMenu={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  setAdminLayoutSelectedDecorId(item.id);
-                                  setAdminLayoutContextMenu({
-                                    decorId: item.id,
-                                    x: e.clientX,
-                                    y: e.clientY,
-                                  });
-                                }}
-                                style={{
-                                  cursor: adminLayoutTool === 'select' ? 'move' : 'default',
-                                  userSelect: 'none',
-                                  transform: rotation !== 0 ? `rotate(${rotation}deg)` : undefined,
-                                  transformOrigin: `${item.x}px ${item.y}px`,
-                                }}
-                              >
-                                {item.text || 'Текст'}
-                              </text>
-                            );
-                          }
-                          return null;
-                        })}
-
-                        {adminLayoutPlacements.map(({ tbl, x, y, i }) => {
-                          const isBlocked = Boolean(tbl?.is_blocked);
-                          const num = String(tbl?.name || '').match(/(\d+)/);
-                          const label = num ? String(num[1]) : String(tbl?.id || '');
-                          const kind = String(tbl?.kind || '').trim().toLowerCase() || 'standard';
-                          const scale = Math.max(0.7, Math.min(1.6, Number(tbl?.scale) || 1));
-                          const seats = Math.max(1, Number(tbl?.seats || 2));
-                          const bar = kind === 'bar';
-                          const round = kind === 'round';
-                          const booth = kind === 'booth';
-                          const w = (bar ? 30 : seats >= 4 ? 64 : 56) * scale;
-                          const h = (bar ? 30 : seats >= 4 ? 40 : 36) * scale;
-                          const busy = adminLayoutDraggingId === tbl.id;
-                          const selected = adminLayoutSelectedId === tbl.id;
-                          const floor = { x: 10 * ADMIN_LAYOUT_SCALE, y: 10 * ADMIN_LAYOUT_SCALE, w: 460 * ADMIN_LAYOUT_SCALE, h: 300 * ADMIN_LAYOUT_SCALE };
-                          const mX = w / 2 + 14;
-                          const mY = h / 2 + 14;
-                          const clampVal = (v, mn, mx) => Math.max(mn, Math.min(mx, v));
-                          const cx = clampVal(x, floor.x + mX, floor.x + floor.w - mX);
-                          const cy = clampVal(y, floor.y + mY, floor.y + floor.h - mY);
-                          return (
-                            <g
-                              key={tbl.id}
-                              transform={`translate(${cx}, ${cy})`}
-                              filter={selected ? 'url(#adm-glow)' : 'url(#adm-shadow)'}
-                              style={{ cursor: 'grab', opacity: isBlocked ? 0.55 : 1 }}
-                              onClick={(e) => { e.stopPropagation(); }}
-                              onContextMenu={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setAdminLayoutSelectedId(tbl.id);
-                                setAdminLayoutContextMenu({
-                                  tableId: tbl.id,
-                                  x: e.clientX,
-                                  y: e.clientY,
-                                });
-                              }}
-                              onPointerDown={(e) => {
-                                if (!adminId || !tbl?.id) return;
-                                if (adminLayoutTool !== 'pan' && adminLayoutTool !== 'select') return;
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setAdminLayoutSelectedDecorId(null);
-
-                                const pt = adminLayoutClientToSvg(e.clientX, e.clientY);
-                                if (!pt) return;
-
-                                const params = adminLayoutParams;
-                                const rawFromDisplay = (displayX, displayY) => {
-                                  const s = ADMIN_LAYOUT_SCALE;
-                                  const dx0 = displayX / s;
-                                  const dy0 = displayY / s;
-                                  const { baseCx, baseCy, sin, cos, shiftX, shiftY } = params;
-                                  const cx2 = 240;
-                                  const cy2 = 160;
-                                  const gapScaleX = 1.28;
-                                  const gapScaleY = 1.38;
-                                  const x1 = dx0 - shiftX;
-                                  const y1 = dy0 - shiftY;
-                                  const dx1 = x1 - baseCx;
-                                  const dy1 = y1 - baseCy;
-                                  const dx = dx1 * cos + dy1 * sin;
-                                  const dy = -dx1 * sin + dy1 * cos;
-                                  const xScaled = baseCx + dx;
-                                  const yScaled = baseCy + dy;
-                                  const rawX = (xScaled - cx2) / gapScaleX + cx2;
-                                  const rawY = (yScaled - cy2) / gapScaleY + cy2;
-                                  return { x: Math.round(rawX), y: Math.round(rawY) };
-                                };
-
-                                const prevX = Number.isFinite(Number(tbl.x)) ? Number(tbl.x) : rawFromDisplay(cx, cy).x;
-                                const prevY = Number.isFinite(Number(tbl.y)) ? Number(tbl.y) : rawFromDisplay(cx, cy).y;
-
-                                const flr = { x: 10 * ADMIN_LAYOUT_SCALE, y: 10 * ADMIN_LAYOUT_SCALE, w: 460 * ADMIN_LAYOUT_SCALE, h: 300 * ADMIN_LAYOUT_SCALE };
-                                const clamp2 = (v, mn, mx) => Math.max(mn, Math.min(mx, v));
-
-                                const offX = pt.x - cx;
-                                const offY = pt.y - cy;
-
-                                // Snap-to-grid utility function
-                                const GRID_SIZE = 20;
-                                const snapToGrid = (val) => Math.round(val / GRID_SIZE) * GRID_SIZE;
-
-                                const moveHandler = (ev) => {
-                                  const drag = adminLayoutDragRef.current;
-                                  if (!drag) return;
-                                  const p = adminLayoutClientToSvg(ev.clientX, ev.clientY);
-                                  if (!p) return;
-                                  let nx = p.x - drag.offX;
-                                  let ny = p.y - drag.offY;
-                                  nx = clamp2(nx, flr.x + 20 * ADMIN_LAYOUT_SCALE, flr.x + flr.w - 20 * ADMIN_LAYOUT_SCALE);
-                                  ny = clamp2(ny, flr.y + 20 * ADMIN_LAYOUT_SCALE, flr.y + flr.h - 20 * ADMIN_LAYOUT_SCALE);
-                                  const raw = rawFromDisplay(nx, ny);
-                                  // Apply snap-to-grid
-                                  raw.x = snapToGrid(raw.x);
-                                  raw.y = snapToGrid(raw.y);
-                                  drag.lastRaw = raw;
-                                  drag.didMove = true;
-                                  setAdminTables((prev) => prev.map((t) => (t.id === drag.tableId ? { ...t, x: raw.x, y: raw.y } : t)));
-                                };
-
-                                const upHandler = async () => {
-                                  const drag = adminLayoutDragRef.current;
-                                  if (!drag) return;
-                                  adminLayoutDragRef.current = null;
-                                  setAdminLayoutDraggingId(null);
-                                  window.removeEventListener('pointermove', moveHandler);
-                                  window.removeEventListener('pointerup', upHandler);
-
-                                  if (!drag.didMove) {
-                                    setAdminLayoutSelectedId(prev => prev === drag.tableId ? null : drag.tableId);
-                                    return;
-                                  }
-
-                                  const raw = drag.lastRaw || { x: prevX, y: prevY };
-                                  try {
-                                    await api.admin.tables.setLayout(adminId, drag.tableId, raw.x, raw.y);
-                                    toast?.ok?.(t('admin_layout_saved'));
-                                  } catch (err) {
-                                    toast?.err?.(err?.message || t('admin_layout_save_failed'));
-                                    setAdminTables((prev) => prev.map((t) => (t.id === drag.tableId ? { ...t, x: prevX, y: prevY } : t)));
-                                  }
-                                };
-
-                                adminLayoutDragRef.current = {
-                                  tableId: tbl.id,
-                                  offX,
-                                  offY,
-                                  prevX,
-                                  prevY,
-                                  didMove: false,
-                                  lastRaw: { x: prevX, y: prevY },
-                                  moveHandler,
-                                  upHandler,
-                                };
-                                setAdminLayoutDraggingId(tbl.id);
-                                window.addEventListener('pointermove', moveHandler);
-                                window.addEventListener('pointerup', upHandler);
-                              }}
-                            >
-                              <rect
-                                x={-w / 2}
-                                y={-h / 2}
-                                width={w}
-                                height={h}
-                                rx={round ? Math.min(w, h) / 2 : booth ? 14 : 10}
-                                fill={busy ? 'rgba(201,169,110,0.75)' : selected ? 'rgba(201,169,110,0.22)' : isBlocked ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.35)'}
-                                stroke={busy || selected ? 'rgba(232,202,144,0.95)' : 'rgba(255,255,255,0.12)'}
-                                strokeWidth={selected ? 2 : 1}
-                              />
-                              <text
-                                x="0"
-                                y="4"
-                                textAnchor="middle"
-                                fill={busy ? '#0b0b0b' : 'rgba(242,237,230,0.92)'}
-                                fontSize="11"
-                                fontFamily="system-ui, -apple-system, Segoe UI, Roboto, Arial"
-                                style={{ userSelect: 'none' }}
-                              >
-                                {label}
-                              </text>
-                              {selected && (
-                                <g
-                                  transform={`translate(${w / 2 + 2}, ${-h / 2 - 2})`}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setAdminLayoutSelectedId(null);
-                                    deleteTable(tbl);
-                                  }}
-                                  style={{ cursor: 'pointer' }}
-                                >
-                                  <circle cx="0" cy="0" r="8" fill="rgba(192,71,59,0.92)" stroke="rgba(255,255,255,0.3)" strokeWidth="1" />
-                                  <path d="M-3.5 -3.5l7 7M3.5 -3.5l-7 7" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
-                                </g>
-                              )}
-                            </g>
-                          );
-                        })}
-                      </svg>
-                      {/* Zoom Controls Overlay - Bottom Right */}
-                      <div style={{
-                        position: 'absolute',
-                        bottom: 12,
-                        right: 12,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        background: 'rgba(15,15,16,0.85)',
-                        padding: '8px',
-                        borderRadius: 8,
-                        border: '1px solid rgba(255,255,255,0.12)',
-                        backdropFilter: 'blur(8px)',
-                      }}>
-                        <button
-                          type="button"
-                          className="btn btn-ghost"
-                          style={{ fontSize: 12, padding: '4px 8px', minWidth: 0 }}
-                          onClick={() => adminLayoutSetZoom(Math.max(ADMIN_LAYOUT_MIN_ZOOM, adminLayoutZoom - 0.15))}
-                          disabled={tableEditorBusy}
-                          title="Zoom out"
-                        >
-                          −
-                        </button>
-                        <button
-                          type="button"
-                          style={{
-                            fontSize: 11,
-                            padding: '4px 8px',
-                            minWidth: 40,
-                            textAlign: 'center',
-                            background: 'rgba(201,169,110,0.10)',
-                            border: '1px solid rgba(201,169,110,0.35)',
-                            borderRadius: 6,
-                            color: 'var(--gold)',
-                            cursor: 'pointer',
-                            fontWeight: 600,
-                          }}
-                          onClick={() => { setAdminLayoutPan({ x: 0, y: 0 }); setAdminLayoutZoom(1); }}
-                          disabled={tableEditorBusy}
-                          title="Reset zoom to 100%"
-                        >
-                          {Math.round(adminLayoutZoom * 100)}%
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-ghost"
-                          style={{ fontSize: 12, padding: '4px 8px', minWidth: 0 }}
-                          onClick={() => adminLayoutSetZoom(Math.min(ADMIN_LAYOUT_MAX_ZOOM, adminLayoutZoom + 0.15))}
-                          disabled={tableEditorBusy}
-                          title="Zoom in"
-                        >
-                          +
-                        </button>
-                      </div>
-
-                      {/* Context Menu */}
-                      {adminLayoutContextMenu && (
-                        <div
-                          style={{
-                            position: 'fixed',
-                            left: adminLayoutContextMenu.x,
-                            top: adminLayoutContextMenu.y,
-                            background: 'rgba(20,20,22,0.95)',
-                            border: '1px solid rgba(255,255,255,0.15)',
-                            borderRadius: 10,
-                            boxShadow: '0 8px 32px rgba(0,0,0,0.50)',
-                            backdropFilter: 'blur(12px)',
-                            zIndex: 10000,
-                            minWidth: 180,
-                            overflow: 'hidden',
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {/* Table Context Menu */}
-                          {adminLayoutContextMenu.tableId && (() => {
-                            const tbl = adminTables.find(t => t.id === adminLayoutContextMenu.tableId);
-                            if (!tbl) return null;
-                            return (
-                              <>
-                                <div style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.08)', fontSize: 11, color: 'var(--muted)' }}>
-                                  {tbl.name || `Товар #${tbl.id}`}
-                                </div>
-                                <button
-                                  type="button"
-                                  style={{
-                                    width: '100%',
-                                    textAlign: 'left',
-                                    padding: '10px 12px',
-                                    border: 'none',
-                                    background: 'transparent',
-                                    color: 'var(--text)',
-                                    fontSize: 12,
-                                    cursor: 'pointer',
-                                    borderBottom: '1px solid rgba(255,255,255,0.08)',
-                                  }}
-                                  onMouseEnter={(e) => e.target.style.background = 'rgba(201,169,110,0.10)'}
-                                  onMouseLeave={(e) => e.target.style.background = 'transparent'}
-                                  onClick={() => {
-                                    duplicateTable(tbl);
-                                  }}
-                                >
-                                  📋 Дублировать
-                                </button>
-                                <button
-                                  type="button"
-                                  style={{
-                                    width: '100%',
-                                    textAlign: 'left',
-                                    padding: '10px 12px',
-                                    border: 'none',
-                                    background: 'transparent',
-                                    color: 'var(--text)',
-                                    fontSize: 12,
-                                    cursor: 'pointer',
-                                    borderBottom: '1px solid rgba(255,255,255,0.08)',
-                                  }}
-                                  onMouseEnter={(e) => e.target.style.background = 'rgba(201,169,110,0.10)'}
-                                  onMouseLeave={(e) => e.target.style.background = 'transparent'}
-                                  onClick={() => {
-                                    openEditTable(tbl);
-                                    setAdminLayoutContextMenu(null);
-                                  }}
-                                >
-                                  ✎ Редактировать
-                                </button>
-                                <button
-                                  type="button"
-                                  style={{
-                                    width: '100%',
-                                    textAlign: 'left',
-                                    padding: '10px 12px',
-                                    border: 'none',
-                                    background: 'transparent',
-                                    color: 'rgba(220,80,70,0.9)',
-                                    fontSize: 12,
-                                    cursor: 'pointer',
-                                  }}
-                                  onMouseEnter={(e) => e.target.style.background = 'rgba(220,80,70,0.12)'}
-                                  onMouseLeave={(e) => e.target.style.background = 'transparent'}
-                                  onClick={() => {
-                                    deleteTable(tbl);
-                                    setAdminLayoutContextMenu(null);
-                                  }}
-                                >
-                                  🗑 Удалить
-                                </button>
-                              </>
-                            );
-                          })()}
-
-                          {/* Decoration Context Menu */}
-                          {adminLayoutContextMenu.decorId && (() => {
-                            const decor = adminLayoutDecor.find(d => d.id === adminLayoutContextMenu.decorId);
-                            if (!decor) return null;
-                            return (
-                              <>
-                                <div style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.08)', fontSize: 11, color: 'var(--muted)' }}>
-                                  {decor.type === 'wall' ? 'Стена' : decor.type === 'door' ? 'Дверь' : decor.type === 'window' ? 'Окно' : decor.type === 'zone' ? 'Зона' : 'Текст'}
-                                </div>
-                                <button
-                                  type="button"
-                                  style={{
-                                    width: '100%',
-                                    textAlign: 'left',
-                                    padding: '10px 12px',
-                                    border: 'none',
-                                    background: 'transparent',
-                                    color: 'var(--text)',
-                                    fontSize: 12,
-                                    cursor: 'pointer',
-                                    borderBottom: '1px solid rgba(255,255,255,0.08)',
-                                  }}
-                                  onMouseEnter={(e) => e.target.style.background = 'rgba(201,169,110,0.10)'}
-                                  onMouseLeave={(e) => e.target.style.background = 'transparent'}
-                                  onClick={() => {
-                                    rotateDecor(decor.id, 15);
-                                  }}
-                                >
-                                  🔄 Повернуть 15°
-                                </button>
-                                <button
-                                  type="button"
-                                  style={{
-                                    width: '100%',
-                                    textAlign: 'left',
-                                    padding: '10px 12px',
-                                    border: 'none',
-                                    background: 'transparent',
-                                    color: 'var(--text)',
-                                    fontSize: 12,
-                                    cursor: 'pointer',
-                                    borderBottom: '1px solid rgba(255,255,255,0.08)',
-                                  }}
-                                  onMouseEnter={(e) => e.target.style.background = 'rgba(201,169,110,0.10)'}
-                                  onMouseLeave={(e) => e.target.style.background = 'transparent'}
-                                  onClick={() => {
-                                    rotateDecor(decor.id, -15);
-                                  }}
-                                >
-                                  ↶ Повернуть -15°
-                                </button>
-                                <button
-                                  type="button"
-                                  style={{
-                                    width: '100%',
-                                    textAlign: 'left',
-                                    padding: '10px 12px',
-                                    border: 'none',
-                                    background: 'transparent',
-                                    color: 'var(--text)',
-                                    fontSize: 12,
-                                    cursor: 'pointer',
-                                    borderBottom: '1px solid rgba(255,255,255,0.08)',
-                                  }}
-                                  onMouseEnter={(e) => e.target.style.background = 'rgba(201,169,110,0.10)'}
-                                  onMouseLeave={(e) => e.target.style.background = 'transparent'}
-                                  onClick={() => {
-                                    setAdminLayoutDecor((prev) => prev.map((item) => (item.id === decor.id ? { ...item, rotation: 0 } : item)));
-                                  }}
-                                >
-                                  ⊙ Сбросить угол
-                                </button>
-                                <button
-                                  type="button"
-                                  style={{
-                                    width: '100%',
-                                    textAlign: 'left',
-                                    padding: '10px 12px',
-                                    border: 'none',
-                                    background: 'transparent',
-                                    color: 'rgba(220,80,70,0.9)',
-                                    fontSize: 12,
-                                    cursor: 'pointer',
-                                  }}
-                                  onMouseEnter={(e) => e.target.style.background = 'rgba(220,80,70,0.12)'}
-                                  onMouseLeave={(e) => e.target.style.background = 'transparent'}
-                                  onClick={() => {
-                                    setAdminLayoutDecor((prev) => prev.filter((item) => item.id !== decor.id));
-                                    setAdminLayoutSelectedDecorId(null);
-                                    setAdminLayoutContextMenu(null);
-                                  }}
-                                >
-                                  🗑 Удалить
-                                </button>
-                              </>
-                            );
-                          })()}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {adminTablesRestaurantId && !adminTablesLoading && adminTables.length === 0 && (
-                  <div className="admin-empty-state" style={{ marginTop: 12 }}>
-                    <div className="admin-stub-h" style={{ marginBottom: 6 }}>Здесь будет ваш зал</div>
-                    <div className="admin-muted">Добавьте первый товар, и план начнёт оживать.</div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
           {tab === 'menu' && (
             <div className="admin-split">
               <div className="admin-panel">
@@ -2915,7 +1872,7 @@ export function AdminModal({ onClose, toast }) {
 
               <div className="admin-panel">
                 <div className="admin-panel-h">
-                  <div className="admin-panel-title">{menuEditingId ? t('admin_editing_hash', { id: menuEditingId }) : t('admin_new_dish')}</div>
+                  <div className="admin-panel-title">{menuEditingId ? t('admin_editing_hash', { id: menuEditingId }) : t('Меню')}</div>
                   <button type="button" className="btn btn-ghost" onClick={startCreateMenu}>{t('admin_clear')}</button>
                 </div>
                 <div className="admin-form">
@@ -2951,6 +1908,27 @@ export function AdminModal({ onClose, toast }) {
                     <div className="fl">{t('admin_field_image')}</div>
                     <input className="fi" type="text" value={menuForm.img} onChange={(e) => setMenuForm((p) => ({ ...p, img: e.target.value }))} placeholder={t('admin_ph_url')} />
                   </div>
+                  <div className="fg">
+                    <div className="fl">Дополнительные фото товара</div>
+                    <textarea
+                      className="fi"
+                      rows={4}
+                      value={menuForm.gallery}
+                      onChange={(e) => setMenuForm((p) => ({ ...p, gallery: e.target.value }))}
+                      placeholder="Один URL на строку"
+                    />
+                  </div>
+                  <input
+                    ref={menuGalleryUploadInputRef}
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleMenuImageUpload(file, 'gallery');
+                      e.target.value = '';
+                    }}
+                  />
                   <input
                     ref={menuUploadInputRef}
                     type="file"
@@ -2984,6 +1962,15 @@ export function AdminModal({ onClose, toast }) {
                     <strong>{menuUploading ? 'Загружаю фото…' : 'Перетащите фото сюда'}</strong>
                     <span>или нажмите, чтобы выбрать из проводника</span>
                   </div>
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    onClick={() => menuGalleryUploadInputRef.current?.click()}
+                    disabled={menuUploading}
+                    style={{ justifyContent: 'center' }}
+                  >
+                    <Icons.Image /> Добавить фото в галерею
+                  </button>
                   <div className="fg">
                     <div className="fl">{t('admin_field_desc')}</div>
                     <textarea className="fi" rows={3} value={menuForm.desc} onChange={(e) => setMenuForm((p) => ({ ...p, desc: e.target.value }))} />
@@ -2994,7 +1981,7 @@ export function AdminModal({ onClose, toast }) {
                   </div>
                   <div className="fg" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <input type="checkbox" checked={menuForm.is_active} onChange={(e) => setMenuForm((p) => ({ ...p, is_active: e.target.checked }))} />
-                    <span style={{ color: 'var(--muted)', fontSize: 12 }}>{t('admin_active_in_menu')}</span>
+                    <span style={{ color: 'var(--muted)', fontSize: 12 }}>{t('Активен в меню')}</span>
                   </div>
                   <button type="button" className="btn btn-gold" onClick={saveMenu}>
                     <Icons.Sparkles /> {t('admin_save')}
@@ -3376,6 +2363,39 @@ export function AdminModal({ onClose, toast }) {
                   </button>
                 </div>
                 <div className="admin-panel-scroll">
+                  <div className="admin-stub" style={{ marginBottom: 12 }}>
+                    <div className="admin-stub-h">С кем мы работаем</div>
+                    <div className="admin-muted" style={{ marginBottom: 10 }}>Этот блок показывается на странице отзывов.</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {reviewPartners.map((item, idx) => (
+                        <div key={idx} style={{ display: 'grid', gridTemplateColumns: 'minmax(160px, 240px) 1fr auto', gap: 8, alignItems: 'start' }}>
+                          <input
+                            className="fi"
+                            type="text"
+                            value={item.title}
+                            onChange={(e) => updateReviewPartner(idx, 'title', e.target.value)}
+                            placeholder="Название"
+                          />
+                          <textarea
+                            className="fi"
+                            rows={2}
+                            value={item.text}
+                            onChange={(e) => updateReviewPartner(idx, 'text', e.target.value)}
+                            placeholder="Описание"
+                          />
+                          <button type="button" className="btn btn-ghost" onClick={() => removeReviewPartner(idx)}>
+                            <Icons.Trash />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                      <button type="button" className="btn btn-ghost" onClick={addReviewPartner}>+ Добавить</button>
+                      <button type="button" className="btn btn-gold" onClick={saveReviewPartners}>
+                        <Icons.Sparkles /> Сохранить блок
+                      </button>
+                    </div>
+                  </div>
                   {reviewsLoading && <div className="admin-muted">{t('loading')}</div>}
                   {!reviewsLoading && reviewsFiltered.length === 0 && <div className="admin-muted">{t('admin_reviews_empty')}</div>}
                   {reviewsFiltered.map((rv) => (
@@ -3472,7 +2492,7 @@ export function AdminModal({ onClose, toast }) {
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                             <div style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--gold)' }}>{t('admin_hero_slot', { n: idx + 1 })}</div>
                             <div style={{ display: 'flex', gap: 6 }}>
-                              <button type="button" className={`btn ${!isCustom ? 'btn-gold' : 'btn-ghost'}`} style={{ padding: '5px 12px', fontSize: 10 }} onClick={() => updateHeroSlot(idx, 'mode', 'dish')}>{t('admin_hero_mode_dish')}</button>
+                              <button type="button" className={`btn ${!isCustom ? 'btn-gold' : 'btn-ghost'}`} style={{ padding: '5px 12px', fontSize: 10 }} onClick={() => updateHeroSlot(idx, 'mode', 'dish')}>{t('Добавление товара с каталога')}</button>
                               <button type="button" className={`btn ${isCustom ? 'btn-gold' : 'btn-ghost'}`} style={{ padding: '5px 12px', fontSize: 10 }} onClick={() => updateHeroSlot(idx, 'mode', 'custom')}>{t('admin_hero_mode_custom')}</button>
                             </div>
                           </div>
@@ -3497,7 +2517,7 @@ export function AdminModal({ onClose, toast }) {
                           )}
 
                           <div className="fg" style={{ marginBottom: 10 }}>
-                            <div className="fl">{t('admin_hero_title_override')}</div>
+                            <div className="fl">{t('Переопределить заголовок героя администратора')}</div>
                             <input className="fi" type="text" value={slot.titleOverride || ''} onChange={e => updateHeroSlot(idx, 'titleOverride', e.target.value)} placeholder={isCustom ? (slot.customTitle || t('admin_hero_title_override_ph')) : (dish?.name || t('admin_hero_title_override_ph'))} />
                           </div>
 
@@ -3564,77 +2584,6 @@ export function AdminModal({ onClose, toast }) {
           )}
 
           {/* ── CONTACTS tab ── */}
-          {tab === 'contacts' && (
-            <div className="admin-inbox">
-              <div className="admin-threadlist">
-                <div className="admin-threadlist-h">
-                  <div className="admin-threadlist-title">Сообщения с сайта</div>
-                  <button type="button" className="btn btn-ghost" onClick={loadContactMessages}>
-                    <Icons.Refresh /> {t('refresh')}
-                  </button>
-                </div>
-                <div className="admin-threadlist-scroll">
-                  {contactMessages.length === 0 && (
-                    <div className="admin-muted">Сообщений пока нет. Они появятся здесь после заполнения формы на странице «Контакты».</div>
-                  )}
-                  {contactMessages.map((msg) => (
-                    <button
-                      key={msg.id}
-                      type="button"
-                      className={`admin-thread${selectedContactMsg?.id === msg.id ? ' on' : ''}`}
-                      onClick={() => { setSelectedContactMsg(msg); markContactRead(msg.id); }}
-                    >
-                      <div className="admin-thread-name">
-                        {!msg.read && <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: 'var(--gold)', marginRight: 7, flexShrink: 0 }} />}
-                        {msg.name}
-                      </div>
-                      <div className="admin-thread-preview">{msg.phone}</div>
-                      <div className="admin-thread-preview" style={{ fontSize: 10, marginTop: 2, color: 'var(--muted)' }}>
-                        {new Date(msg.date).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="admin-chat">
-                {!selectedContactMsg ? (
-                  <div className="admin-muted">Выберите сообщение для просмотра</div>
-                ) : (
-                  <>
-                    <div className="admin-chat-h">
-                      <div>
-                        <div className="admin-chat-title">{selectedContactMsg.name}</div>
-                        <div className="admin-chat-sub">{selectedContactMsg.phone} · {new Date(selectedContactMsg.date).toLocaleString('ru-RU')}</div>
-                      </div>
-                      <button
-                        type="button"
-                        className="btn btn-outline-gold"
-                        onClick={() => deleteContactMsg(selectedContactMsg.id)}
-                      >
-                        <Icons.Trash /> Удалить
-                      </button>
-                    </div>
-                    <div className="admin-chat-list" style={{ padding: '16px 20px' }}>
-                      <div style={{
-                        background: 'rgba(255,255,255,0.04)',
-                        border: '1px solid rgba(255,255,255,0.08)',
-                        borderRadius: 'var(--r-md)',
-                        padding: '16px 18px',
-                        color: 'var(--text)',
-                        fontSize: 14,
-                        lineHeight: 1.6,
-                        whiteSpace: 'pre-wrap',
-                      }}>
-                        {selectedContactMsg.message || <span style={{ color: 'var(--muted)' }}>Сообщение не указано</span>}
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ── TRANSLATIONS tab ── */}
           {tab === 'translations' && (() => {
             const langs = DICT_LANGS;
             const baseDict = DICT[transLang] || DICT.ru;

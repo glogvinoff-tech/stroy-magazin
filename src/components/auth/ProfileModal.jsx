@@ -25,7 +25,6 @@ export function ProfileModal({ onClose, toast, onRepeatOrder }) {
   const [profile, setProfile] = useState(null);
   const userRef = useRef(user);
   const toastRef = useRef(toast);
-  const [vkClientId, setVkClientId] = useState('');
   const [proOpen, setProOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
   const [events, setEvents] = useState([]);
@@ -51,17 +50,6 @@ export function ProfileModal({ onClose, toast, onRepeatOrder }) {
     loadStatuses();
     window.addEventListener('storage', loadStatuses);
     return () => window.removeEventListener('storage', loadStatuses);
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const cfg = await api.auth.getPublicConfig();
-        if (!cancelled) setVkClientId(cfg.vk_client_id || '');
-      } catch { /* ignore */ }
-    })();
-    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -210,21 +198,6 @@ export function ProfileModal({ onClose, toast, onRepeatOrder }) {
     } catch (e) {
       toast.err(e.message || t('profile_email_code_invalid'));
     }
-  };
-
-  const connectVk = () => {
-    if (!vkClientId || !user?.id) { toast.err(t('profile_vk_unconfigured')); return; }
-    window.sessionStorage.setItem('auth_return_to', window.location.pathname || '/');
-    const redirectUri = `${window.location.origin}/auth/vk/callback`;
-    const params = new URLSearchParams({
-      client_id: vkClientId,
-      redirect_uri: redirectUri,
-      response_type: 'code',
-      scope: 'email',
-      state: `link:${user.id}`,
-      v: '5.199',
-    });
-    window.location.href = `https://oauth.vk.com/authorize?${params.toString()}`;
   };
 
   const setPro = async (enabled) => {
@@ -496,16 +469,6 @@ export function ProfileModal({ onClose, toast, onRepeatOrder }) {
                     <button type="button" className="btn btn-ghost" onClick={sendEmailCode}>{t('profile_send_code')}</button>
                     <input className="fi" style={{ maxWidth: 140 }} type="text" value={emailCode} onChange={(e) => setEmailCode(e.target.value)} placeholder={t('profile_code')} />
                     <button type="button" className="btn btn-outline-gold" onClick={confirmEmailCode}>{t('auth_confirm')}</button>
-                  </div>
-                </div>
-
-                <div className="fg">
-                  <div className="fl">{t('profile_socials')}</div>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t('profile_telegram_disabled')}</div>
-                    <button type="button" className="btn btn-ghost" onClick={connectVk}>
-                      {profile?.vk_username ? `VK: ${profile.vk_username}` : t('profile_link_vk')}
-                    </button>
                   </div>
                 </div>
 
