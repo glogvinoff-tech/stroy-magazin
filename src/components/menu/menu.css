@@ -668,6 +668,42 @@
   color: #ff6b7a;
   border-color: rgba(232,74,95,0.6);
 }
+.stock-store-bar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  margin:14px 0 18px;
+  padding:14px;
+  border:1px solid var(--glass-border);
+  border-radius:12px;
+  background:rgba(255,255,255,.035);
+}
+.stock-store-copy{display:flex;flex-direction:column;gap:4px;min-width:0;}
+.stock-store-copy strong{color:var(--text);font-size:13px;}
+.stock-store-copy span{color:var(--muted);font-size:12px;}
+.stock-store-select{max-width:460px;}
+.mc-stock{
+  display:inline-flex;
+  width:max-content;
+  max-width:100%;
+  margin-top:10px;
+  padding:4px 9px;
+  border-radius:999px;
+  border:1px solid var(--glass-border);
+  font-size:11px;
+  letter-spacing:.4px;
+}
+.mc-stock.ok{color:#8ee0a1;border-color:rgba(142,224,161,.35);background:rgba(142,224,161,.08);}
+.mc-stock.low{color:#f5c76a;border-color:rgba(245,199,106,.35);background:rgba(245,199,106,.08);}
+.mc-stock.out{color:#ff7f75;border-color:rgba(255,127,117,.35);background:rgba(255,127,117,.08);}
+.menu-card.out-of-stock{opacity:.68;}
+.menu-card.out-of-stock .mc-img img{filter:grayscale(.55);}
+.menu-card .add-btn:disabled{opacity:.5;cursor:not-allowed;transform:none;}
+@media(max-width:720px){
+  .stock-store-bar{align-items:stretch;flex-direction:column;}
+  .stock-store-select{max-width:none;width:100%;}
+}
 .dish-img.angle-a{transform:scale(1.12) rotate(-1.5deg);transform-origin:40% 50%;}
 .dish-img.angle-b{transform:scale(1.18) rotate(1.5deg);transform-origin:65% 45%;}
 .dish-gallery{position:absolute;left:14px;bottom:14px;display:flex;gap:8px;z-index:4;}

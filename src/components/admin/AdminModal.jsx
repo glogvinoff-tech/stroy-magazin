@@ -116,7 +116,7 @@ function AdminLineChart({ data, height = 140 }) {
   );
 }
 
-export function AdminModal({ onClose, toast }) {
+export function AdminModal({ onClose, toast, onNavigate }) {
   const { user } = useAuth();
   const { t } = useI18n();
   const [tab, setTab] = useState('inbox');
@@ -182,7 +182,6 @@ export function AdminModal({ onClose, toast }) {
     address: '',
     phone: '',
   });
-
   const [adminTablesLoading, setAdminTablesLoading] = useState(false);
   const [adminTablesRestaurantId, setAdminTablesRestaurantId] = useState(null);
   const [adminTables, setAdminTables] = useState([]);
@@ -534,17 +533,6 @@ export function AdminModal({ onClose, toast }) {
       await loadThreads();
     } catch (e) {
       toast?.err?.(e.message || t('admin_err_send_message'));
-    }
-  };
-
-  const aiReply = async () => {
-    if (!adminId || !selectedId) return;
-    try {
-      await api.ai.adminReply(selectedId, adminId);
-      await loadMessages(selectedId);
-      await loadThreads();
-    } catch (e) {
-      toast?.err?.(e.message || t('admin_err_ai_unavailable'));
     }
   };
 
@@ -1569,6 +1557,16 @@ export function AdminModal({ onClose, toast }) {
           <button type="button" className={`admin-tab${tab === 'menu' ? ' on' : ''}`} onClick={() => setTab('menu')}>
             <Icons.Sliders /> {t('admin_tab_menu')}
           </button>
+          <button
+            type="button"
+            className="admin-tab"
+            onClick={() => {
+              onClose?.();
+              onNavigate?.('warehouse');
+            }}
+          >
+            <Icons.Cart /> Складской учёт
+          </button>
           <button type="button" className={`admin-tab${tab === 'stoplist' ? ' on' : ''}`} onClick={() => setTab('stoplist')}>
             <Icons.Alert /> {t('admin_tab_stoplist')}
           </button>
@@ -1651,7 +1649,6 @@ export function AdminModal({ onClose, toast }) {
                       {messages.map((m) => (
                         <div key={m.id} className={`admin-msg ${m.sender_role === 'admin' ? 'admin' : m.sender_role === 'assistant' ? 'assistant' : 'user'}`}>
                           <div className="admin-bubble">
-                            {m.sender_role === 'assistant' && <span className="admin-ai">AI</span>}
                             {m.text}
                           </div>
                         </div>
@@ -1668,9 +1665,6 @@ export function AdminModal({ onClose, toast }) {
                         onKeyDown={(e) => e.key === 'Enter' && send()}
                         disabled={loadingMessages}
                       />
-                      <button type="button" className="admin-ai-btn" onClick={aiReply} disabled={loadingMessages} aria-label={t('admin_ai_reply')} title={t('admin_ai_reply')}>
-                        <Icons.Sparkles />
-                      </button>
                       <button type="button" className="admin-send" onClick={send} disabled={loadingMessages || !draft.trim()} aria-label={t('admin_send_message')} title={t('admin_send_message')}>
                         <Icons.Send />
                       </button>
@@ -1859,7 +1853,11 @@ export function AdminModal({ onClose, toast }) {
                           {it.name}
                           {!it.is_active && <span className="admin-row-off">{t('admin_off')}</span>}
                         </div>
-                        <div className="admin-row-sub">{it.cat} · {it.price} ₽</div>
+                        <div className="admin-row-sub">
+                          {it.cat} · {it.price} ₽ · На складе: {Number(it.stock_total || 0)}
+                          {it.stock_status === 'low' && <span className="admin-stock-warn">заканчивается</span>}
+                          {it.stock_status === 'out' && <span className="admin-stock-danger">нет в наличии</span>}
+                        </div>
                       </div>
                       <div className="admin-row-actions">
                         <button type="button" className="btn btn-ghost" onClick={() => startEditMenu(it)}>{t('admin_edit')}</button>

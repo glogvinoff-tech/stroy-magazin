@@ -201,22 +201,6 @@ export const api = {
     },
   },
 
-  ai: {
-    supportReply: async (threadId, userId, temperature = null) => {
-      return requestJson(`/ai/support/thread/${threadId}/reply?user_id=${encodeURIComponent(String(userId || ''))}`, {
-        method: 'POST',
-        body: temperature !== null && temperature !== undefined ? { temperature } : {},
-      });
-    },
-
-    adminReply: async (threadId, adminId, temperature = null) => {
-      return requestJson(`/ai/admin/thread/${threadId}/reply?admin_id=${encodeURIComponent(String(adminId || ''))}`, {
-        method: 'POST',
-        body: temperature !== null && temperature !== undefined ? { temperature } : {},
-      });
-    },
-  },
-
   support: {
     getThread: async (userId) => {
       return requestJson(`/support/thread?user_id=${encodeURIComponent(String(userId || ''))}`);
@@ -410,6 +394,63 @@ export const api = {
 
     tables: async (restaurantId) => {
       return requestJson(`/restaurants/${restaurantId}/tables`);
+    },
+  },
+
+  warehouse: {
+    list: async (adminId, restaurantId = null) => {
+      const params = new URLSearchParams();
+      params.set('admin_id', String(adminId || ''));
+      if (restaurantId) params.set('restaurant_id', String(restaurantId));
+      return requestJson(`/warehouse/?${params.toString()}`);
+    },
+
+    update: async (adminId, itemId, restaurantId, payload) => {
+      return requestJson(`/warehouse/${itemId}/${restaurantId}?admin_id=${encodeURIComponent(String(adminId || ''))}`, {
+        method: 'PUT',
+        body: payload,
+      });
+    },
+
+    adjust: async (adminId, itemId, restaurantId, delta, reason = '') => {
+      return requestJson(`/warehouse/${itemId}/${restaurantId}/adjust?admin_id=${encodeURIComponent(String(adminId || ''))}`, {
+        method: 'POST',
+        body: { delta, reason },
+      });
+    },
+
+    clear: async (adminId, itemId, restaurantId) => {
+      return requestJson(`/warehouse/${itemId}/${restaurantId}?admin_id=${encodeURIComponent(String(adminId || ''))}`, {
+        method: 'DELETE',
+      });
+    },
+
+    movements: async (adminId, restaurantId = null, itemId = null) => {
+      const params = new URLSearchParams();
+      params.set('admin_id', String(adminId || ''));
+      if (restaurantId) params.set('restaurant_id', String(restaurantId));
+      if (itemId) params.set('item_id', String(itemId));
+      return requestJson(`/warehouse/movements?${params.toString()}`);
+    },
+
+    documents: async (adminId) => {
+      return requestJson(`/warehouse/documents?admin_id=${encodeURIComponent(String(adminId || ''))}`);
+    },
+
+    createDocument: async (adminId, payload) => {
+      return requestJson(`/warehouse/documents?admin_id=${encodeURIComponent(String(adminId || ''))}`, {
+        method: 'POST',
+        body: payload,
+      });
+    },
+
+    exportCsv: async (adminId, restaurantId = null) => {
+      const params = new URLSearchParams();
+      params.set('admin_id', String(adminId || ''));
+      if (restaurantId) params.set('restaurant_id', String(restaurantId));
+      const res = await fetch(`${API_BASE}/warehouse/export.csv?${params.toString()}`);
+      if (!res.ok) throw new Error('Не удалось экспортировать склад');
+      return res.blob();
     },
   },
 

@@ -1,4 +1,5 @@
 ﻿from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, ForeignKey, Float
+from sqlalchemy import UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
@@ -186,6 +187,8 @@ class Order(Base):
     payment = Column(String, nullable=True)
     comment = Column(Text, nullable=True)
     status = Column(String, nullable=False, default="pending")
+    stock_reserved = Column(Boolean, nullable=False, default=False)
+    stock_committed = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime(timezone=True), nullable=True, server_default=func.now())
 
     user = relationship("User")
@@ -273,6 +276,70 @@ class MenuItem(Base):
     is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), nullable=True, server_default=func.now())
     updated_at = Column(DateTime(timezone=True), nullable=True, server_default=func.now())
+
+
+class WarehouseStock(Base):
+    __tablename__ = "warehouse_stocks"
+    __table_args__ = (UniqueConstraint("menu_item_id", "restaurant_id", name="uq_warehouse_item_restaurant"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    menu_item_id = Column(Integer, ForeignKey("menu_items.id"), nullable=False, index=True)
+    restaurant_id = Column(Integer, ForeignKey("restaurants.id"), nullable=False, index=True)
+    quantity = Column(Integer, nullable=False, default=0)
+    reserved = Column(Integer, nullable=False, default=0)
+    min_quantity = Column(Integer, nullable=False, default=5)
+    sku = Column(String, nullable=True)
+    barcode = Column(String, nullable=True)
+    data_matrix = Column(String, nullable=True)
+    batch = Column(String, nullable=True)
+    location = Column(String, nullable=True)
+    storage_condition = Column(String, nullable=True)
+    supplier = Column(String, nullable=True)
+    expires_at = Column(String, nullable=True)
+    updated_at = Column(DateTime(timezone=True), nullable=True, server_default=func.now())
+
+    item = relationship("MenuItem")
+    restaurant = relationship("Restaurant")
+
+
+class WarehouseMovement(Base):
+    __tablename__ = "warehouse_movements"
+
+    id = Column(Integer, primary_key=True, index=True)
+    stock_id = Column(Integer, ForeignKey("warehouse_stocks.id"), nullable=True, index=True)
+    menu_item_id = Column(Integer, ForeignKey("menu_items.id"), nullable=False, index=True)
+    restaurant_id = Column(Integer, ForeignKey("restaurants.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    delta = Column(Integer, nullable=False, default=0)
+    quantity_after = Column(Integer, nullable=False, default=0)
+    reason = Column(String, nullable=True)
+    document_no = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=True, server_default=func.now())
+
+    stock = relationship("WarehouseStock")
+    item = relationship("MenuItem")
+    restaurant = relationship("Restaurant")
+    user = relationship("User")
+
+
+class WarehouseDocument(Base):
+    __tablename__ = "warehouse_documents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    kind = Column(String, nullable=False, index=True)  # receipt|writeoff|inventory
+    document_no = Column(String, nullable=True)
+    menu_item_id = Column(Integer, ForeignKey("menu_items.id"), nullable=False, index=True)
+    restaurant_id = Column(Integer, ForeignKey("restaurants.id"), nullable=False, index=True)
+    quantity = Column(Integer, nullable=False, default=0)
+    quantity_before = Column(Integer, nullable=False, default=0)
+    quantity_after = Column(Integer, nullable=False, default=0)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    comment = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=True, server_default=func.now())
+
+    item = relationship("MenuItem")
+    restaurant = relationship("Restaurant")
+    user = relationship("User")
 
 
 class Event(Base):

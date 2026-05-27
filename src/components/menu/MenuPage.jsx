@@ -165,6 +165,8 @@ export function MenuPage({ onAddToCart, onQty, onRemove, onOpenCart, cart = [], 
   const [added, setAdded] = useState(new Set());
   const [menuItems, setMenuItems] = useState([]);
   const [cats, setCats] = useState(() => [ALL_CAT]);
+  const [restaurants, setRestaurants] = useState([]);
+  const [stockRestaurantId, setStockRestaurantId] = useState('');
   const [page, setPage] = useState(1);
   const [projectKey, setProjectKey] = useState(PROJECT_PRESETS[0].key);
   const [projectArea, setProjectArea] = useState(18);
@@ -173,10 +175,11 @@ export function MenuPage({ onAddToCart, onQty, onRemove, onOpenCart, cart = [], 
     let cancelled = false;
     (async () => {
       try {
-        const list = await api.menu.list();
+        const [list, stores] = await Promise.all([api.menu.list(), api.restaurants.list().catch(() => [])]);
         if (cancelled) return;
         const safeList = Array.isArray(list) ? list : [];
         setMenuItems(safeList);
+        setRestaurants(Array.isArray(stores) ? stores : []);
         const uniq = Array.from(new Set(safeList.map((x) => x?.cat).filter(Boolean)));
         setCats([ALL_CAT, ...uniq]);
       } catch {
@@ -188,6 +191,11 @@ export function MenuPage({ onAddToCart, onQty, onRemove, onOpenCart, cart = [], 
       cancelled = true;
     };
   }, []);
+
+  const stockFor = (dish) => {
+    if (!stockRestaurantId) return Number(dish?.stock_total || 0);
+    return Number(dish?.stock_by_restaurant?.[String(stockRestaurantId)] || 0);
+  };
 
   const filteredByCat = useMemo(() => (cat === ALL_CAT ? menuItems : menuItems.filter((d) => d.cat === cat)), [cat, menuItems]);
 
@@ -304,6 +312,10 @@ export function MenuPage({ onAddToCart, onQty, onRemove, onOpenCart, cart = [], 
   const allergenCount = (tag) => listForFacets.filter((d) => hasTag(d, tag)).length;
   
   const handleAdd = (dish) => {
+    if (stockRestaurantId && stockFor(dish) <= 0) {
+      toast?.err?.('В выбранном магазине товара нет в наличии.');
+      return;
+    }
     const basePrice = Number((dish && (dish.base_price ?? dish.price)) || 0);
     const disc = clampPercent(dish?.discount_percent || 0);
     const price = disc ? Math.max(0, Math.round(basePrice * (100 - disc) / 100)) : basePrice;
@@ -397,6 +409,21 @@ export function MenuPage({ onAddToCart, onQty, onRemove, onOpenCart, cart = [], 
           )}
         </div>
       </div>
+
+      {restaurants.length > 0 && (
+        <div className="stock-store-bar">
+          <div className="stock-store-copy">
+            <strong>Наличие по адресу</strong>
+            <span>Выберите магазин, чтобы видеть остатки конкретно на этом складе.</span>
+          </div>
+          <select className="fi stock-store-select" value={stockRestaurantId} onChange={(e) => setStockRestaurantId(e.target.value)}>
+            <option value="">Все магазины</option>
+            {restaurants.map((r) => (
+              <option key={r.id} value={r.id}>{r.name} — {r.address}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {filtersOpen && (
         <div className="filters-sheet">
@@ -585,8 +612,10 @@ export function MenuPage({ onAddToCart, onQty, onRemove, onOpenCart, cart = [], 
           const fp = effectivePrice(dish);
           const cartItem = cart.find(i => i.id === dish.id);
           const inCartQty = cartItem ? cartItem.qty : 0;
+          const stockQty = stockFor(dish);
+          const outOfStock = stockRestaurantId && stockQty <= 0;
           return (
-          <div className="menu-card" key={dish.id}>
+          <div className={`menu-card${outOfStock ? ' out-of-stock' : ''}`} key={dish.id}>
             <div className="mc-img" onClick={() => setSelected(dish)}>
               <img src={dish.img} alt={dish.name} loading="lazy"/>
               {dish.badge && <div className="mc-badge">{dish.badge}</div>}
@@ -606,6 +635,9 @@ export function MenuPage({ onAddToCart, onQty, onRemove, onOpenCart, cart = [], 
               </div>
               <div className="mc-name">{dish.name}</div>
               <div className="mc-desc">{dish.desc}</div>
+              <div className={`mc-stock ${stockQty <= 0 ? 'out' : stockQty <= 5 ? 'low' : 'ok'}`}>
+                {stockQty <= 0 ? 'Нет в наличии' : `В наличии: ${stockQty}`}
+              </div>
               <div className="mc-footer">
                 <div className="mc-price">
                   {disc > 0 ? (
@@ -638,7 +670,7 @@ export function MenuPage({ onAddToCart, onQty, onRemove, onOpenCart, cart = [], 
                   </button>
                   </>
                 ) : (
-                  <button className={`add-btn${added.has(dish.id) ? " added" : ""}`} onClick={() => handleAdd(dish)}>
+                  <button className={`add-btn${added.has(dish.id) ? " added" : ""}`} onClick={() => handleAdd(dish)} disabled={outOfStock}>
                     {added.has(dish.id) ? <><Icons.Check /> {t('added')}</> : <><Icons.Plus /> {t('to_cart')}</>}
                   </button>
                 )}

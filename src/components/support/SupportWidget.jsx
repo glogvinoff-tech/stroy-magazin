@@ -16,7 +16,6 @@ export function SupportWidget({ onOpenLogin, toast, onNavigate }) {
   const [thread, setThread] = useState(null);
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
-  const [mode, setMode] = useState('support'); // support | ai
   const listRef = useRef(null);
   const pollRef = useRef(null);
   const wrapRef = useRef(null);
@@ -171,13 +170,6 @@ export function SupportWidget({ onOpenLogin, toast, onNavigate }) {
     setSending(true);
     try {
       await api.support.sendMessage(thread.id, user.id, text);
-      if (mode === 'ai') {
-        try {
-          await api.ai.supportReply(thread.id, user.id);
-        } catch (e) {
-          toast?.err?.(e.message || t('support_err_ai_unavailable'));
-        }
-      }
       const msgs = await api.support.listMessages(thread.id, user.id);
       setMessages(Array.isArray(msgs) ? msgs : []);
     } catch (e) {
@@ -217,20 +209,10 @@ export function SupportWidget({ onOpenLogin, toast, onNavigate }) {
                 {isPro && <span className="sw-vip"><Icons.Diamond /> PRO</span>}
               </div>
               <div className="sw-sub">
-                {mode === 'ai' ? t('support_sub_ai') : t('support_sub_support')}
+                {t('support_sub_support')}
               </div>
             </div>
               <div className="sw-head-actions">
-              {!!user?.id && (
-                <div className="sw-modes" role="tablist" aria-label={t('support_mode')}>
-                  <button type="button" className={`sw-mode${mode === 'support' ? ' on' : ''}`} onClick={() => setMode('support')}>
-                    {t('support_mode_support')}
-                  </button>
-                  <button type="button" className={`sw-mode${mode === 'ai' ? ' on' : ''}`} onClick={() => setMode('ai')}>
-                    {t('support_mode_ai')}
-                  </button>
-                </div>
-              )}
               <button type="button" className="sw-close" aria-label={t('support_close')} onClick={() => setOpen(false)}>
                 <Icons.XIcon />
               </button>
@@ -257,7 +239,6 @@ export function SupportWidget({ onOpenLogin, toast, onNavigate }) {
                 {messages.map((m) => (
                   <div key={m.id} className={`sw-msg ${m.sender_role === 'admin' ? 'admin' : m.sender_role === 'assistant' ? 'assistant' : 'user'}`}>
                     <div className="sw-bubble">
-                      {m.sender_role === 'assistant' && <span className="sw-ai">AI</span>}
                       {m.text}
                     </div>
                   </div>
@@ -284,7 +265,7 @@ export function SupportWidget({ onOpenLogin, toast, onNavigate }) {
                       else setDraft(t('support_action_catalog'));
                     }}
                   >
-                    <Icons.Catalog /> {t('support_action_catalog')}
+                    <Icons.Menu /> {t('support_action_catalog')}
                   </button>
                   <button
                     type="button"

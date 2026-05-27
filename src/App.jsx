@@ -11,6 +11,7 @@ import { ContactsPage } from './components/contacts/ContactsPage';
 import { AboutPage } from './components/about/AboutPage';
 import { ReviewsPage } from './components/reviews/ReviewsPage';
 import { EventsPage } from './components/events/EventsPage';
+import { WarehousePage } from './components/admin/WarehousePage';
 import { CartDrawer } from './components/cart/CartDrawer';
 import { LoginModal } from './components/auth/LoginModal';
 import { RegisterModal } from './components/auth/RegisterModal';
@@ -37,6 +38,7 @@ function pageForPath(pathname) {
   if (p === '/reviews') return 'reviews';
   if (p === '/events') return 'events';
   if (p === '/past-events') return 'past-events';
+  if (p === '/warehouse') return 'warehouse';
   return 'home';
 }
 
@@ -47,6 +49,7 @@ function pathForPage(page) {
   if (page === 'reviews') return '/reviews';
   if (page === 'events') return '/events';
   if (page === 'past-events') return '/past-events';
+  if (page === 'warehouse') return '/warehouse';
   return '/';
 }
 
@@ -267,6 +270,7 @@ function AppContent() {
       {page === 'reviews' && <ReviewsPage toast={toast} />}
       {page === 'events' && <EventsPage past={false} setPage={navigatePage} />}
       {page === 'past-events' && <EventsPage past={true} setPage={navigatePage} />}
+      {page === 'warehouse' && <WarehousePage toast={toast} setPage={navigatePage} />}
 
       <div className="site-credit">
         Интернет-магазин <strong>СтройМагазин</strong>. Всё для строительства и ремонта.
@@ -281,6 +285,7 @@ function AppContent() {
         <ProfileModal
           onClose={closeOverlay}
           toast={toast}
+          onNavigate={navigatePage}
           onRepeatOrder={(items) => {
             items.forEach(item => {
               for (let i = 0; i < (item.qty || 1); i++) addToCart(item);

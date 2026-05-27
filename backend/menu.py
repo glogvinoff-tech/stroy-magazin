@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from database import get_db
-from models import MenuItem, User
+from models import MenuItem, User, WarehouseStock
 from datetime import datetime
 import json
 
@@ -112,7 +112,19 @@ def _gallery_from_json(raw: str | None) -> list[str]:
     return []
 
 
-def _payload(item: MenuItem) -> dict:
+def _stock_summary(item_id: int, stock_map: dict[int, list[WarehouseStock]] | None = None) -> tuple[int, dict[str, int]]:
+    rows = (stock_map or {}).get(item_id, [])
+    by_restaurant: dict[str, int] = {}
+    total = 0
+    for row in rows:
+        available = max(0, int(getattr(row, "quantity", 0) or 0) - int(getattr(row, "reserved", 0) or 0))
+        by_restaurant[str(row.restaurant_id)] = available
+        total += available
+    return total, by_restaurant
+
+
+def _payload(item: MenuItem, stock_map: dict[int, list[WarehouseStock]] | None = None) -> dict:
+    stock_total, stock_by_restaurant = _stock_summary(item.id, stock_map)
     return {
         "id": item.id,
         "cat": item.cat,
@@ -127,8 +139,19 @@ def _payload(item: MenuItem) -> dict:
         "desc": item.desc or "",
         "ingr": item.ingr or "",
         "is_active": bool(item.is_active),
+        "stock_total": stock_total,
+        "stock_by_restaurant": stock_by_restaurant,
+        "stock_status": "out" if stock_total <= 0 else "low" if stock_total <= 5 else "ok",
         "updated_at": item.updated_at,
     }
+
+
+def _load_stock_map(db: Session) -> dict[int, list[WarehouseStock]]:
+    rows = db.query(WarehouseStock).all()
+    out: dict[int, list[WarehouseStock]] = {}
+    for row in rows:
+        out.setdefault(row.menu_item_id, []).append(row)
+    return out
 
 
 @router.get("/items")
@@ -138,10 +161,12 @@ def list_items(include_inactive: bool = False, admin_id: int | None = None, db: 
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="admin_id is required")
         _require_admin(db, admin_id)
         items = db.query(MenuItem).order_by(desc(MenuItem.updated_at), desc(MenuItem.id)).all()
-        return [_payload(i) for i in items]
+        stock_map = _load_stock_map(db)
+        return [_payload(i, stock_map) for i in items]
 
     items = db.query(MenuItem).filter(MenuItem.is_active == True).order_by(MenuItem.cat.asc(), MenuItem.id.asc()).all()  # noqa: E712
-    return [_payload(i) for i in items]
+    stock_map = _load_stock_map(db)
+    return [_payload(i, stock_map) for i in items]
 
 
 @router.get("/cats")
@@ -180,7 +205,7 @@ def create_item(payload: MenuItemCreate, admin_id: int, db: Session = Depends(ge
     db.add(item)
     db.commit()
     db.refresh(item)
-    return _payload(item)
+    return _payload(item, _load_stock_map(db))
 
 
 @router.put("/items/{item_id}")
@@ -223,7 +248,7 @@ def update_item(item_id: int, payload: MenuItemUpdate, admin_id: int, db: Sessio
     db.add(item)
     db.commit()
     db.refresh(item)
-    return _payload(item)
+    return _payload(item, _load_stock_map(db))
 
 
 @router.delete("/items/{item_id}")

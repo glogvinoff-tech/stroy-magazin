@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 import json
 
 from database import get_db
-from models import Order, User
+from models import MenuItem, Order, User, WarehouseMovement, WarehouseStock
 
 
 router = APIRouter(prefix="/api/orders", tags=["orders"])
@@ -79,6 +79,25 @@ def create_order(payload: OrderCreate, user_id: int | None = Query(None), db: Se
         if not u:
             user_id = None
 
+    stock_rows = {}
+    if payload.restaurant_id:
+        for it in items:
+            row = (
+                db.query(WarehouseStock)
+                .filter(WarehouseStock.menu_item_id == it.id, WarehouseStock.restaurant_id == payload.restaurant_id)
+                .first()
+            )
+            available = max(0, int(getattr(row, "quantity", 0) or 0) - int(getattr(row, "reserved", 0) or 0)) if row else 0
+            requested = max(1, int(it.qty or 1))
+            if available < requested:
+                item = db.query(MenuItem).filter(MenuItem.id == it.id).first()
+                name = getattr(item, "name", None) or it.name or f"#{it.id}"
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Недостаточно товара на складе: {name}. Доступно: {available}",
+                )
+            stock_rows[it.id] = row
+
     items_json = json.dumps([it.model_dump() for it in items], ensure_ascii=False)
     o = Order(
         user_id=user_id,
@@ -91,8 +110,26 @@ def create_order(payload: OrderCreate, user_id: int | None = Query(None), db: Se
         payment=(payload.payment or "").strip() or None,
         comment=(payload.comment or "").strip() or None,
         status="pending",
+        stock_reserved=bool(stock_rows),
+        stock_committed=False,
     )
     db.add(o)
+    for it in items:
+        row = stock_rows.get(it.id)
+        if row:
+            qty = max(1, int(it.qty or 1))
+            row.reserved = max(0, int(row.reserved or 0) + qty)
+            db.add(row)
+            db.add(WarehouseMovement(
+                stock_id=row.id,
+                menu_item_id=row.menu_item_id,
+                restaurant_id=row.restaurant_id,
+                user_id=user_id,
+                delta=0,
+                quantity_after=int(row.quantity or 0),
+                reason=f"Резерв заказа",
+                document_no=None,
+            ))
     db.commit()
     db.refresh(o)
     return _payload(o)

@@ -13,7 +13,7 @@ import orders
 import admin_orders
 import reviews as reviews_module
 import uploads
-import ai
+import warehouse
 from Telegram import router as telegram_official_router
 import models
 import os
@@ -262,6 +262,12 @@ def migrate_legacy_orders_schema():
         if "status" not in cols:
             db.execute(text("ALTER TABLE orders ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'"))
             changed = True
+        if "stock_reserved" not in cols:
+            db.execute(text("ALTER TABLE orders ADD COLUMN stock_reserved BOOLEAN NOT NULL DEFAULT 0"))
+            changed = True
+        if "stock_committed" not in cols:
+            db.execute(text("ALTER TABLE orders ADD COLUMN stock_committed BOOLEAN NOT NULL DEFAULT 0"))
+            changed = True
         if changed:
             db.commit()
     finally:
@@ -352,12 +358,27 @@ def seed_events():
         db.close()
 
 
+def migrate_legacy_warehouse_schema():
+    db: Session = SessionLocal()
+    try:
+        cols = {row[1] for row in db.execute(text("PRAGMA table_info(warehouse_stocks)")).fetchall()}
+        if not cols:
+            return
+        for name in ["barcode", "data_matrix", "batch", "storage_condition", "expires_at"]:
+            if name not in cols:
+                db.execute(text(f"ALTER TABLE warehouse_stocks ADD COLUMN {name} VARCHAR"))
+        db.commit()
+    finally:
+        db.close()
+
+
 Base.metadata.create_all(bind=engine)
 migrate_legacy_users_schema()
 migrate_legacy_tables_schema()
 migrate_legacy_menu_items_schema()
 migrate_legacy_orders_schema()
 migrate_legacy_reviews_schema()
+migrate_legacy_warehouse_schema()
 
 # Создаем приложение FastAPI
 app = FastAPI(
@@ -423,13 +444,13 @@ app.include_router(telegram_official_router)
 app.include_router(restaurants.router)
 app.include_router(admin.router)
 app.include_router(support.router)
-app.include_router(ai.router)
 app.include_router(menu.router)
 app.include_router(events.router)
 app.include_router(orders.router)
 app.include_router(admin_orders.router)
 app.include_router(reviews_module.router)
 app.include_router(uploads.router)
+app.include_router(warehouse.router)
 
 # seed restaurants/tables if not present
 seed_restaurants()

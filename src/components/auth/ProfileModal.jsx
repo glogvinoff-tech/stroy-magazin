@@ -15,7 +15,7 @@ import {
   getAllOrderStatuses,
 } from '../../utils/orderStatus';
 
-export function ProfileModal({ onClose, toast, onRepeatOrder }) {
+export function ProfileModal({ onClose, toast, onRepeatOrder, onNavigate }) {
   const { user, login } = useAuth();
   const { t } = useI18n();
   const { favorites, toggle: toggleFav } = useFavorites();
@@ -528,7 +528,17 @@ export function ProfileModal({ onClose, toast, onRepeatOrder }) {
         />
       )}
 
-      {adminOpen && <AdminModal onClose={() => setAdminOpen(false)} toast={toast} />}
+      {adminOpen && (
+        <AdminModal
+          onClose={() => setAdminOpen(false)}
+          toast={toast}
+          onNavigate={(page) => {
+            setAdminOpen(false);
+            onClose?.();
+            onNavigate?.(page);
+          }}
+        />
+      )}
     </>
   );
 }
