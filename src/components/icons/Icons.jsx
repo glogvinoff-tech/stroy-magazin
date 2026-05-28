@@ -390,12 +390,6 @@ export const Icons = {
     </svg>
   ),
 
-  Telegram: () => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M21.7 3.3c-.4-.4-1-.5-1.6-.3L3.9 9.4c-.7.3-1.1 1-1 1.7.1.7.6 1.2 1.3 1.4l4.6 1.3 1.6 5.1c.2.6.7 1 1.3 1.1h.2c.5 0 1-.2 1.3-.6l2.6-3.1 4.7 3.4c.3.2.7.3 1 .3.2 0 .3 0 .5-.1.5-.2.9-.6 1-1.2l2.7-14.3c.1-.6-.1-1.2-.5-1.6Zm-4.1 11.5-5.3-3.9c-.5-.3-1.1-.3-1.5.2l-1.6 1.9-.7-2.3 9.5-6.1-7.7 7.3 7.3 5.4-1.9 1.2Z"/>
-    </svg>
-  ),
-
   Google: () => (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.6" opacity="0.9" />

@@ -1,7 +1,0 @@
-tunnel: 86f9eab5-7596-4eb5-8e24-8b82fe04e33a
-credentials-file: C:\Users\tema\.cloudflared\86f9eab5-7596-4eb5-8e24-8b82fe04e33a.json
-
-ingress:
-  - hostname: app.vashenazvanie.space
-    service: http://127.0.0.1:8001
-  - service: http_status:404

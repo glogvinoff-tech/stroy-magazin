@@ -113,8 +113,7 @@ function AppContent() {
         const { pathname, search } = window.location;
         const isGoogle = pathname === '/auth/google/callback';
         const isVk = pathname === '/auth/vk/callback';
-        const isTelegram = pathname === '/auth/telegram/callback';
-        if (!isGoogle && !isVk && !isTelegram) return;
+        if (!isGoogle && !isVk) return;
 
         const returnTo = window.sessionStorage.getItem(AUTH_RETURN_TO_KEY) || '/';
         window.sessionStorage.removeItem(AUTH_RETURN_TO_KEY);
@@ -158,31 +157,6 @@ function AppContent() {
             return;
           }
           userData = await api.auth.loginWithVk(code, redirectUri);
-        } else if (isTelegram) {
-          const tg = Object.fromEntries(params.entries());
-          if (!tg.id || !tg.hash || !tg.auth_date) throw new Error(t('oauth_invalid_telegram_data'));
-          const tgPayload = {
-            id: String(tg.id),
-            auth_date: Number(tg.auth_date),
-            hash: tg.hash,
-          };
-          if (tg.first_name) tgPayload.first_name = tg.first_name;
-          if (tg.last_name) tgPayload.last_name = tg.last_name;
-          if (tg.username) tgPayload.username = tg.username;
-          if (tg.photo_url) tgPayload.photo_url = tg.photo_url;
-          if (isLinkFlow) {
-            const targetUserId = Number(state.split(':')[1] || 0);
-            if (!targetUserId) throw new Error(t('oauth_invalid_link_state_telegram'));
-            await api.auth.linkTelegram(targetUserId, tgPayload);
-            toast.ok(t('oauth_telegram_linked'));
-            const backPage = pageForPath(returnTo);
-            window.history.replaceState({ page: backPage, modal: null, cartOpen: false }, '', pathForPage(backPage));
-            setPage(backPage);
-            setModal(null);
-            setCartOpen(false);
-            return;
-          }
-          userData = await api.auth.loginWithTelegram(tgPayload);
         }
 
         if (!userData) throw new Error(t('oauth_finish_failed'));

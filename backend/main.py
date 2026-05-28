@@ -14,7 +14,6 @@ import admin_orders
 import reviews as reviews_module
 import uploads
 import warehouse
-from Telegram import router as telegram_official_router
 import models
 import os
 from pathlib import Path
@@ -139,12 +138,6 @@ def migrate_legacy_users_schema():
             db.execute(text("ALTER TABLE users ADD COLUMN birth_date VARCHAR"))
         if "email_verified" not in user_cols:
             db.execute(text("ALTER TABLE users ADD COLUMN email_verified BOOLEAN"))
-        if "telegram_id" not in user_cols:
-            db.execute(text("ALTER TABLE users ADD COLUMN telegram_id VARCHAR"))
-        if "telegram_username" not in user_cols:
-            db.execute(text("ALTER TABLE users ADD COLUMN telegram_username VARCHAR"))
-        if "telegram_photo_url" not in user_cols:
-            db.execute(text("ALTER TABLE users ADD COLUMN telegram_photo_url VARCHAR"))
         if "vk_id" not in user_cols:
             db.execute(text("ALTER TABLE users ADD COLUMN vk_id VARCHAR"))
         if "vk_username" not in user_cols:
@@ -440,7 +433,6 @@ app.add_middleware(
 
 # Подключаем роутеры
 app.include_router(auth.router)
-app.include_router(telegram_official_router)
 app.include_router(restaurants.router)
 app.include_router(admin.router)
 app.include_router(support.router)

@@ -9,8 +9,6 @@ from pydantic import BaseModel, EmailStr
 from typing import Optional
 import os
 import json
-import hmac
-import hashlib
 import random
 import smtplib
 from email.message import EmailMessage
@@ -46,20 +44,6 @@ class VkIdLoginPayload(BaseModel):
     access_token: str
     user_id: str
     email: Optional[EmailStr] = None
-
-
-class TelegramAuthPayload(BaseModel):
-    id: str
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    username: Optional[str] = None
-    photo_url: Optional[str] = None
-    auth_date: int
-    hash: str
-
-
-class LinkTelegramPayload(TelegramAuthPayload):
-    user_id: int
 
 
 class LinkVkPayload(VkAuthCode):
@@ -106,7 +90,7 @@ def _public_user_payload(db_user, message: str) -> dict:
     display_name = getattr(db_user, "name", None) or getattr(db_user, "username", None) or getattr(db_user, "email", None) or "user"
     role_id = getattr(db_user, "role_id", None) or 1
     registration_date = getattr(db_user, "registration_date", None) or getattr(db_user, "created_at", None) or datetime.utcnow()
-    avatar = getattr(db_user, "telegram_photo_url", None) or getattr(db_user, "vk_avatar_url", None)
+    avatar = getattr(db_user, "vk_avatar_url", None)
     return {
         "id": db_user.id,
         "name": display_name,
@@ -133,8 +117,6 @@ def _profile_payload(db_user) -> dict:
         "email": email,
         "email_verified": email_verified,
         "is_pro": bool(getattr(db_user, "is_pro", False)),
-        "telegram_username": getattr(db_user, "telegram_username", None) or "",
-        "telegram_photo_url": getattr(db_user, "telegram_photo_url", None) or "",
         "vk_username": getattr(db_user, "vk_username", None) or "",
         "vk_avatar_url": getattr(db_user, "vk_avatar_url", None) or "",
     }
@@ -194,7 +176,10 @@ def _find_user_for_login(db: Session, login_value: str):
         if user:
             return user
     if "email" in cols:
-        user = db.query(User).filter(sa_func.lower(User.email) == value.lower()).first()
+        user = db.query(User).filter(
+            sa_func.lower(User.email) == value.lower(),
+            User.email_verified == True,  # noqa: E712
+        ).first()
         if user:
             return user
     return None
@@ -250,39 +235,6 @@ def _build_google_payload(db: Session, email: Optional[str], username: str, disp
     return payload
 
 
-def _build_telegram_payload(db: Session, tg: TelegramAuthPayload) -> dict:
-    cols = _user_columns()
-    payload = {}
-    username = tg.username or f"tg_{tg.id}"
-    display_name = " ".join([x for x in [tg.first_name, tg.last_name] if x]).strip() or username
-    random_password = hash_password(os.urandom(16).hex())
-    if "name" in cols:
-        payload["name"] = username
-    if "username" in cols:
-        payload["username"] = username
-    if "password" in cols:
-        payload["password"] = random_password
-    if "hashed_password" in cols:
-        payload["hashed_password"] = random_password
-    if "role_id" in cols:
-        payload["role_id"] = _resolve_default_role_id(db)
-    if "full_name" in cols:
-        payload["full_name"] = display_name
-    if "email" in cols:
-        payload["email"] = f"{username}@telegram.local"
-    if "email_verified" in cols:
-        payload["email_verified"] = False
-    if "telegram_id" in cols:
-        payload["telegram_id"] = str(tg.id)
-    if "telegram_username" in cols:
-        payload["telegram_username"] = tg.username or ""
-    if "telegram_photo_url" in cols:
-        payload["telegram_photo_url"] = tg.photo_url or ""
-    if "is_active" in cols:
-        payload["is_active"] = True
-    return payload
-
-
 def _vk_birth_to_iso(bdate: str) -> str:
     value = (bdate or "").strip()
     if not value:
@@ -330,24 +282,6 @@ def _build_vk_payload(db: Session, vk_user: dict, email: Optional[str]) -> dict:
     if "is_active" in cols:
         payload["is_active"] = True
     return payload
-
-
-def _verify_telegram_auth(payload: TelegramAuthPayload) -> None:
-    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
-    if not bot_token:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Telegram is not configured")
-
-    data = payload.model_dump()
-    received_hash = data.pop("hash")
-    data_check_string = "\n".join([f"{k}={data[k]}" for k in sorted(data.keys()) if data[k] not in (None, "")])
-    secret_key = hashlib.sha256(bot_token.encode("utf-8")).digest()
-    calc_hash = hmac.new(secret_key, data_check_string.encode("utf-8"), hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(calc_hash, received_hash):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Telegram auth hash")
-
-    now_ts = int(datetime.now(tz=timezone.utc).timestamp())
-    if now_ts - int(payload.auth_date) > 86400:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Telegram auth data is expired")
 
 
 def _exchange_google_code(code: str) -> dict:
@@ -444,19 +378,33 @@ def _send_email_verification_code(email: str, code: str) -> None:
     password = os.getenv("SMTP_PASS")
     sender = os.getenv("SMTP_FROM", user or "noreply@example.com")
     if not host or not user or not password:
+        if (os.getenv("EMAIL_CODE_DEV_MODE") or "1").strip().lower() in {"1", "true", "yes", "on"}:
+            print(f"[email verification] code for {email}: {code}")
+            return
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="SMTP is not configured")
 
     msg = EmailMessage()
-    msg["Subject"] = "Email verification code"
+    msg["Subject"] = "Код подтверждения email"
     msg["From"] = sender
     msg["To"] = email
-    msg.set_content(f"Your verification code: {code}\nThis code is valid for 10 minutes.")
+    msg.set_content(
+        "Здравствуйте!\n\n"
+        f"Ваш код подтверждения email: {code}\n"
+        "Код действует 10 минут.\n\n"
+        "Если вы не запрашивали код, просто проигнорируйте это письмо.\n"
+        "Строительный магазин"
+    )
 
     try:
-        with smtplib.SMTP(host, port, timeout=10) as smtp:
-            smtp.starttls()
-            smtp.login(user, password)
-            smtp.send_message(msg)
+        if port == 465:
+            with smtplib.SMTP_SSL(host, port, timeout=10) as smtp:
+                smtp.login(user, password)
+                smtp.send_message(msg)
+        else:
+            with smtplib.SMTP(host, port, timeout=10) as smtp:
+                smtp.starttls()
+                smtp.login(user, password)
+                smtp.send_message(msg)
     except Exception:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Could not send verification email")
 
@@ -465,11 +413,9 @@ def _send_email_verification_code(email: str, code: str) -> None:
 def auth_public_config():
     google_client_id = (os.getenv("GOOGLE_CLIENT_ID") or os.getenv("REACT_APP_GOOGLE_CLIENT_ID") or "").strip()
     vk_client_id = (os.getenv("VK_CLIENT_ID") or os.getenv("REACT_APP_VK_CLIENT_ID") or "").strip()
-    telegram_bot_username = (os.getenv("TELEGRAM_BOT_USERNAME") or os.getenv("REACT_APP_TELEGRAM_BOT_USERNAME") or "").strip().lstrip("@")
     return {
         "google_client_id": google_client_id,
         "vk_client_id": vk_client_id,
-        "telegram_bot_username": telegram_bot_username,
     }
 
 
@@ -517,20 +463,6 @@ def google_callback(payload: GoogleAuthCode, db: Session = Depends(get_db)):
     return _public_user_payload(user, "Google login successful")
 
 
-@router.post("/telegram/callback")
-def telegram_callback(payload: TelegramAuthPayload, db: Session = Depends(get_db)):
-    _verify_telegram_auth(payload)
-    cols = _user_columns()
-    user = None
-    if "telegram_id" in cols:
-        user = db.query(User).filter(User.telegram_id == str(payload.id)).first()
-    if not user and payload.username and "username" in cols:
-        user = db.query(User).filter(User.username == payload.username).first()
-    if not user:
-        user = _create_user_if_needed(db, _build_telegram_payload(db, payload))
-    return _public_user_payload(user, "Telegram login successful")
-
-
 @router.post("/vk/callback")
 def vk_callback(payload: VkAuthCode, db: Session = Depends(get_db)):
     token = _exchange_vk_code(payload.code, payload.redirect_uri)
@@ -570,29 +502,6 @@ def vkid_login(payload: VkIdLoginPayload, db: Session = Depends(get_db)):
     return _public_user_payload(user, "VKID login successful")
 
 
-@router.post("/telegram/link")
-def link_telegram(payload: LinkTelegramPayload, db: Session = Depends(get_db)):
-    _verify_telegram_auth(payload)
-    user = db.query(User).filter(User.id == payload.user_id).first()
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    if _has("telegram_id"):
-        existing = db.query(User).filter(User.telegram_id == str(payload.id), User.id != payload.user_id).first()
-        if existing:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Telegram account already linked to another user")
-        user.telegram_id = str(payload.id)
-    if _has("telegram_username"):
-        user.telegram_username = payload.username or ""
-    if _has("telegram_photo_url"):
-        user.telegram_photo_url = payload.photo_url or ""
-    if _has("full_name") and not user.full_name:
-        user.full_name = " ".join([x for x in [payload.first_name, payload.last_name] if x]).strip()
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return _profile_payload(user)
-
-
 @router.post("/vk/link")
 def link_vk(payload: LinkVkPayload, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == payload.user_id).first()
@@ -630,12 +539,16 @@ def send_email_code(payload: EmailCodeRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == payload.user_id).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    email_value = str(payload.email).strip().lower()
+    existing = db.query(User).filter(sa_func.lower(User.email) == email_value, User.id != payload.user_id).first()
+    if existing:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already exists")
 
     code = f"{random.randint(0, 999999):06d}"
     expires_at = datetime.now(tz=timezone.utc) + timedelta(minutes=10)
     rec = EmailVerificationCode(
         user_id=payload.user_id,
-        email=str(payload.email),
+        email=email_value,
         code=code,
         expires_at=expires_at,
         is_used=False,
@@ -667,6 +580,9 @@ def confirm_email_code(payload: EmailCodeConfirm, db: Session = Depends(get_db))
     user = db.query(User).filter(User.id == payload.user_id).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    existing = db.query(User).filter(sa_func.lower(User.email) == rec.email.lower(), User.id != payload.user_id).first()
+    if existing:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already exists")
 
     if _has("email"):
         user.email = rec.email

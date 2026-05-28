@@ -6,7 +6,6 @@ export const CONTACT_INFO = {
   kitchenHours: 'Онлайн-заказ: круглосуточно',
   social: {
     instagram: '@stroymagazin',
-    telegram: '@stroymagazin_bot',
     vk: 'VK СтройМагазин',
   },
   coordinates: {

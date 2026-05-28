@@ -10,6 +10,8 @@ export function RegisterModal({ onClose, onLogin, toast }) {
   const [f, setF] = useState({ name: '', email: '', pass: '', pass2: '', agree: false });
   const [loading, setLoading] = useState(false);
   const [codeSent, setCodeSent] = useState(false);
+  const [createdUser, setCreatedUser] = useState(null);
+  const [emailCode, setEmailCode] = useState('');
   const [legalOpen, setLegalOpen] = useState(null);
   const { login } = useAuth();
   const { t } = useI18n();
@@ -40,6 +42,7 @@ export function RegisterModal({ onClose, onLogin, toast }) {
     try {
       const user = await api.auth.register(nameTrim, f.pass, 1, emailTrim || undefined);
       login(user);
+      setCreatedUser(user);
       if (emailTrim) {
         await api.auth.sendEmailCode(user.id, emailTrim);
         setCodeSent(true);
@@ -50,6 +53,29 @@ export function RegisterModal({ onClose, onLogin, toast }) {
       }
     } catch (err) {
       toast.err(err.message || t('auth_register_failed'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const confirmEmail = async () => {
+    if (!createdUser?.id || !emailCode.trim()) {
+      toast.err(t('profile_email_code_required'));
+      return;
+    }
+    setLoading(true);
+    try {
+      const updated = await api.auth.confirmEmailCode(createdUser.id, emailCode.trim());
+      login({
+        ...createdUser,
+        email: updated.email,
+        email_verified: Boolean(updated.email_verified),
+        avatar_url: updated.vk_avatar_url || createdUser.avatar_url,
+      });
+      toast.ok(t('profile_email_verified'));
+      onClose();
+    } catch (err) {
+      toast.err(err.message || t('profile_email_code_invalid'));
     } finally {
       setLoading(false);
     }
@@ -109,10 +135,19 @@ export function RegisterModal({ onClose, onLogin, toast }) {
                 </button>
               </label>
             </div>
-            <button type="submit" className="submit" disabled={loading || !f.name.trim() || !f.pass || !f.agree}>
+            <button type="submit" className="submit" disabled={loading || !f.name.trim() || !f.pass || !f.agree || codeSent}>
               {loading ? t('auth_register_loading') : t('auth_register_btn')}
             </button>
-            {codeSent && <p className="auth-note">{t('auth_verify_email_hint')}</p>}
+            {codeSent && (
+              <div className="fg">
+                <p className="auth-note">{t('auth_verify_email_hint')}</p>
+                <div className="fl">{t('profile_code')}</div>
+                <input className="fi" type="text" value={emailCode} onChange={(e) => setEmailCode(e.target.value)} placeholder="000000" />
+                <button type="button" className="btn btn-outline-gold" onClick={confirmEmail} disabled={loading || !emailCode.trim()}>
+                  {t('auth_confirm')}
+                </button>
+              </div>
+            )}
           </form>
           <div className="m-ftr">
             <p>{t('auth_have_account')} <button type="button" className="link-like" onClick={onLogin}>{t('auth_signin_btn')}</button></p>

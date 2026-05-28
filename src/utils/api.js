@@ -143,20 +143,6 @@ export const api = {
       });
     },
 
-    loginWithTelegram: async (telegramAuthData) => {
-      return requestJson('/auth/telegram/callback', {
-        method: 'POST',
-        body: telegramAuthData,
-      });
-    },
-
-    linkTelegram: async (userId, telegramAuthData) => {
-      return requestJson('/auth/telegram/link', {
-        method: 'POST',
-        body: { user_id: userId, ...telegramAuthData },
-      });
-    },
-
     linkVk: async (userId, code, redirectUri) => {
       return requestJson('/auth/vk/link', {
         method: 'POST',

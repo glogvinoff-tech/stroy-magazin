@@ -76,7 +76,7 @@ export function ProfileModal({ onClose, toast, onRepeatOrder, onNavigate }) {
           phone: p.phone || baseUser.phone,
           birth_date: p.birth_date || baseUser.birth_date,
           email: p.email || baseUser.email,
-          avatar_url: p.telegram_photo_url || p.vk_avatar_url || baseUser.avatar_url,
+          avatar_url: p.vk_avatar_url || baseUser.avatar_url,
           is_pro: Boolean(p.is_pro ?? baseUser.is_pro),
         });
       } catch (e) {
@@ -167,7 +167,7 @@ export function ProfileModal({ onClose, toast, onRepeatOrder, onNavigate }) {
         phone: updated.phone || form.phone,
         birth_date: updated.birth_date || form.birth_date,
         email: updated.email || form.email || user.email,
-        avatar_url: updated.telegram_photo_url || updated.vk_avatar_url || user.avatar_url,
+        avatar_url: updated.vk_avatar_url || user.avatar_url,
         is_pro: Boolean(updated.is_pro ?? user.is_pro),
       });
       toast.ok(t('profile_saved'));
@@ -193,6 +193,12 @@ export function ProfileModal({ onClose, toast, onRepeatOrder, onNavigate }) {
     try {
       const updated = await api.auth.confirmEmailCode(user.id, emailCode.trim());
       setProfile(updated);
+      login({
+        ...user,
+        email: updated.email,
+        email_verified: Boolean(updated.email_verified),
+        avatar_url: updated.vk_avatar_url || user.avatar_url,
+      });
       setEmailCode('');
       toast.ok(t('profile_email_verified'));
     } catch (e) {
@@ -232,10 +238,10 @@ export function ProfileModal({ onClose, toast, onRepeatOrder, onNavigate }) {
               <p style={{ color: 'var(--muted)' }}>{t('profile_loading')}</p>
             ) : (
               <>
-                {(profile?.telegram_photo_url || profile?.vk_avatar_url) && (
+                {profile?.vk_avatar_url && (
                   <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
                     <img
-                      src={profile.telegram_photo_url || profile.vk_avatar_url}
+                      src={profile.vk_avatar_url}
                       alt={t('avatar_alt')}
                       style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--gold)' }}
                     />

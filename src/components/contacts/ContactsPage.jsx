@@ -8,11 +8,9 @@ export function ContactsPage({ toast }) {
   const [form, setForm] = useState({ name: "", phone: "", message: "" });
   const [sending, setSending] = useState(false);
   const phoneDigits = (CONTACT_INFO.phone || '').replace(/\D/g, '');
-  const tg = String(CONTACT_INFO.social?.telegram || '').replace(/^@/, '');
   const ig = String(CONTACT_INFO.social?.instagram || '').replace(/^@/, '');
   const vk = String(CONTACT_INFO.social?.vk || '').replace(/^@/, '');
   const waUrl = phoneDigits ? `https://wa.me/${phoneDigits}` : null;
-  const tgUrl = tg ? `https://t.me/${tg}` : null;
   const igUrl = ig ? `https://instagram.com/${ig}` : null;
   const vkUrl = vk ? `https://vk.com/${vk}` : null;
   const { lat, lng } = CONTACT_INFO.coordinates || {};
@@ -92,11 +90,6 @@ export function ContactsPage({ toast }) {
               {igUrl && (
                 <a className="social-link" href={igUrl} target="_blank" rel="noreferrer">
                   <Icons.Instagram /> Instagram
-                </a>
-              )}
-              {tgUrl && (
-                <a className="social-link" href={tgUrl} target="_blank" rel="noreferrer">
-                  <Icons.Telegram /> Telegram
                 </a>
               )}
               {waUrl && (
